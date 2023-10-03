@@ -38,17 +38,8 @@ func main() {
 	}
 
 	cmd.AddCommand(&cobra.Command{
-		Use:   "hello",
-		Short: "subcommand test cobra",
-		Args:  cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Hi there", args[0])
-		},
-	})
-
-	cmd.AddCommand(&cobra.Command{
 		Use:   "movetohot",
-		Short: "subcommand to move all parts of a table to hot",
+		Short: "subcommand to move all parts of a table to hot disk just include <database> <table> as arguments",
 		Args:  cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			var (

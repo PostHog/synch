@@ -56,7 +56,7 @@ func main() {
 				database = args[0]
 				table    = args[1]
 			)
-			fmt.Printf("Moving parts to hot for table:%s.%s\n", database, table)
+			fmt.Printf("Moving parts to hot for table: %s.%s\n", database, table)
 			connUS, err := connectUS()
 			if err != nil {
 				panic(err)
@@ -123,31 +123,35 @@ func testConection(ctx context.Context, conn driver.Conn) {
 }
 
 func moveToHot(ctx context.Context, conn driver.Conn, database, table string) error {
+	fmt.Printf("Moving parts for table: %s.%s\n", database, table)
 	rows, err := conn.Query(
 		ctx,
-		"select partition from system.parts where active and disk_name != 'hot' and database = {database:String} and table = {table:String} group partition;",
+		"select name from system.parts where active and disk_name != 'hot' and database = {database:String} and table = {table:String} group by name;",
 		clickhouse.Named("database", database),
 		clickhouse.Named("table", table))
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
-
 	for rows.Next() {
-		var partition string
+		var name string
 		if err := rows.Scan(
-			&partition,
+			&name,
 		); err != nil {
 			log.Fatal(err)
 			return err
 		}
-		fmt.Println("Moving partition:", partition)
-		conn.Exec(
+		fmt.Println("Moving part:", name)
+		err = conn.Exec(
 			ctx,
-			"alter table {database:Identifier}.{table:Identifier} move partition {partition:String} to disk 'hot'",
+			fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk 'hot'", name),
 			clickhouse.Named("database", database),
 			clickhouse.Named("table", table),
-			clickhouse.Named("partition", partition))
+			clickhouse.Named("part_name", name))
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
 	}
 	return nil
 }

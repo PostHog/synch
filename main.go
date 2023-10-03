@@ -22,7 +22,6 @@ var (
 )
 
 func init() {
-	// Load .env file. This populates the environment with key-value pairs from .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found")
 	}
@@ -141,7 +140,7 @@ func moveToHot(ctx context.Context, conn driver.Conn, database, table string) er
 			log.Fatal(err)
 			return err
 		}
-		fmt.Println("Moving part:", name)
+		fmt.Printf("Moving part:%s for table %s.%s", name, database, table)
 		err = conn.Exec(
 			ctx,
 			fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk 'hot'", name),

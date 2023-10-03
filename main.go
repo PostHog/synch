@@ -131,7 +131,7 @@ func moveToHot(ctx context.Context, conn driver.Conn, database, table string) er
 			log.Fatal(err)
 			return err
 		}
-		fmt.Printf("Moving part:%s for table %s.%s", name, database, table)
+		fmt.Printf("Moving part:%s for table %s.%s\n", name, database, table)
 		err = conn.Exec(
 			ctx,
 			fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk 'hot'", name),

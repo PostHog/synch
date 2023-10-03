@@ -11,6 +11,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/go-co-op/gocron"
 	"github.com/joho/godotenv"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
@@ -29,28 +30,55 @@ func init() {
 }
 
 func main() {
-	connEU, err := connectEU()
-	if err != nil {
-		panic((err))
+	cmd := &cobra.Command{
+		Use:   "ClickHouse tools",
+		Short: "A simple ClickHouse admin application",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("This is a simple ClickHouse admin application")
+		},
 	}
 
-	connCloud, err := connectCloud()
-	if err != nil {
-		panic((err))
-	}
-
-	ctx := context.Background()
-	testConection(ctx, connEU)
-	testConection(ctx, connCloud)
-
-	s := gocron.NewScheduler(time.UTC)
-	s.Every(1).Day().At("00:30").WaitForSchedule().Do(func() {
-		updateTables(ctx, connEU, connCloud)
+	cmd.AddCommand(&cobra.Command{
+		Use:   "hello",
+		Short: "subcommand test cobra",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Hi there", args[0])
+		},
 	})
 
-	updateTables(ctx, connEU, connCloud)
+	// Add additional commands to the command
+	cmd.AddCommand(&cobra.Command{
+		Use:   "synctable",
+		Short: "subcommand to sync a table across clusters",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
 
-	s.StartBlocking()
+			connEU, err := connectEU()
+			if err != nil {
+				panic((err))
+			}
+
+			connCloud, err := connectCloud()
+			if err != nil {
+				panic((err))
+			}
+
+			ctx := context.Background()
+			testConection(ctx, connEU)
+			testConection(ctx, connCloud)
+
+			s := gocron.NewScheduler(time.UTC)
+			s.Every(1).Day().At("00:30").WaitForSchedule().Do(func() {
+				updateTables(ctx, connEU, connCloud)
+			})
+
+			updateTables(ctx, connEU, connCloud)
+
+			s.StartBlocking()
+		},
+	})
+	cmd.Execute()
 }
 
 func testConection(ctx context.Context, conn driver.Conn) {

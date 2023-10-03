@@ -47,6 +47,26 @@ func main() {
 		},
 	})
 
+	cmd.AddCommand(&cobra.Command{
+		Use:   "movetohot",
+		Short: "subcommand to move all parts of a table to hot",
+		Args:  cobra.MinimumNArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			var (
+				database = args[0]
+				table    = args[1]
+			)
+			fmt.Printf("Moving parts to hot for table:%s.%s\n", database, table)
+			connUS, err := connectUS()
+			if err != nil {
+				panic(err)
+			}
+			ctx := context.Background()
+			testConection(ctx, connUS)
+			moveToHot(ctx, connUS, database, table)
+		},
+	})
+
 	// Add additional commands to the command
 	cmd.AddCommand(&cobra.Command{
 		Use:   "synctable",
@@ -100,6 +120,36 @@ func testConection(ctx context.Context, conn driver.Conn) {
 		log.Printf("name: %s, uuid: %s",
 			name, uuid)
 	}
+}
+
+func moveToHot(ctx context.Context, conn driver.Conn, database, table string) error {
+	rows, err := conn.Query(
+		ctx,
+		"select partition from system.parts where active and disk_name != 'hot' and database = {database:String} and table = {table:String} group partition;",
+		clickhouse.Named("database", database),
+		clickhouse.Named("table", table))
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+
+	for rows.Next() {
+		var partition string
+		if err := rows.Scan(
+			&partition,
+		); err != nil {
+			log.Fatal(err)
+			return err
+		}
+		fmt.Println("Moving partition:", partition)
+		conn.Exec(
+			ctx,
+			"alter table {database:Identifier}.{table:Identifier} move partition {partition:String} to disk 'hot'",
+			clickhouse.Named("database", database),
+			clickhouse.Named("table", table),
+			clickhouse.Named("partition", partition))
+	}
+	return nil
 }
 
 func updateTables(ctx context.Context, connEU, connCloud driver.Conn) {
@@ -218,6 +268,7 @@ func connectCloud() (driver.Conn, error) {
 	}
 	return conn, nil
 }
+
 func connectEU() (driver.Conn, error) {
 	addr := fmt.Sprintf("%s:%d", viper.GetString("CLICKHOUSE_EU_HOSTNAME"), viper.GetInt("CLICKHOUSE_EU_PORT"))
 	var (
@@ -228,6 +279,48 @@ func connectEU() (driver.Conn, error) {
 				Database: viper.GetString("CLICKHOUSE_EU_DATABASE"),
 				Username: viper.GetString("CLICKHOUSE_EU_USERNAME"),
 				Password: viper.GetString("CLICKHOUSE_EU_PASSWORD"),
+			},
+			ClientInfo: clickhouse.ClientInfo{
+				Products: []struct {
+					Name    string
+					Version string
+				}{
+					{Name: "an-example-go-client", Version: "0.1"},
+				},
+			},
+
+			Debugf: func(format string, v ...interface{}) {
+				fmt.Printf(format, v)
+			},
+			TLS: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		})
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := conn.Ping(ctx); err != nil {
+		if exception, ok := err.(*clickhouse.Exception); ok {
+			fmt.Printf("Exception [%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
+		}
+		return nil, err
+	}
+	return conn, nil
+}
+
+func connectUS() (driver.Conn, error) {
+	addr := fmt.Sprintf("%s:%d", viper.GetString("CLICKHOUSE_US_HOSTNAME"), viper.GetInt("CLICKHOUSE_US_PORT"))
+	var (
+		ctx       = context.Background()
+		conn, err = clickhouse.Open(&clickhouse.Options{
+			Addr: []string{addr},
+			Auth: clickhouse.Auth{
+				Database: viper.GetString("CLICKHOUSE_US_DATABASE"),
+				Username: viper.GetString("CLICKHOUSE_US_USERNAME"),
+				Password: viper.GetString("CLICKHOUSE_US_PASSWORD"),
 			},
 			ClientInfo: clickhouse.ClientInfo{
 				Products: []struct {

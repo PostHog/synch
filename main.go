@@ -215,9 +215,7 @@ func drainDisk(ctx context.Context, conn driver.Conn, disk string) error {
 				return err
 			}
 		}
-
 		
-		fmt.Printf("Moving parts for table: %s.%s from disk %s to disk %s\n", database, table, disk, "default")
 		// Get all parts for table on disk to drain
 		parts, err := conn.Query(
 			ctx,
@@ -239,7 +237,7 @@ func drainDisk(ctx context.Context, conn driver.Conn, disk string) error {
 			}
 
 			// chose a disk to move the table to
-
+		}
 
 
 	

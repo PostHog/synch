@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"log"
 	"time"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/go-co-op/gocron"
@@ -38,22 +39,24 @@ func main() {
 	}
 
 	cmd.AddCommand(&cobra.Command{
-		Use:   "movetohot",
-		Short: "subcommand to move all parts of a table to hot disk just include <database> <table> as arguments",
-		Args:  cobra.MinimumNArgs(2),
+		Use:   "moveto",
+		Short: "subcommand to move all parts of a table from a disk to another disk <from_disk> <to_disk> <database> <table> as arguments",
+		Args:  cobra.MinimumNArgs(3),
 		Run: func(cmd *cobra.Command, args []string) {
 			var (
-				database = args[0]
-				table    = args[1]
+				fromDisk = args[0]
+				toDisk   = args[1]
+				database = args[2]
+				table    = args[3]
 			)
-			fmt.Printf("Moving parts to hot for table: %s.%s\n", database, table)
+			fmt.Printf("Moving parts to from disk %s to disk %s for table: %s.%s\n", fromDisk, toDisk, database, table)
 			connUS, err := connectUS()
 			if err != nil {
 				panic(err)
 			}
 			ctx := context.Background()
 			testConection(ctx, connUS)
-			moveToHot(ctx, connUS, database, table)
+			moveTo(ctx, connUS, database, table, fromDisk, toDisk)
 		},
 	})
 
@@ -112,11 +115,12 @@ func testConection(ctx context.Context, conn driver.Conn) {
 	}
 }
 
-func moveToHot(ctx context.Context, conn driver.Conn, database, table string) error {
-	fmt.Printf("Moving parts for table: %s.%s\n", database, table)
+func moveTo(ctx context.Context, conn driver.Conn, database, table, fromDisk, toDisk string) error {
+	fmt.Printf("Moving parts for table: %s.%s from disk %s to disk %s\n", database, table, fromDisk, toDisk)
 	rows, err := conn.Query(
 		ctx,
-		"select name from system.parts where active and disk_name != 'hot' and database = {database:String} and table = {table:String} group by name;",
+		"select name from system.parts where active and disk_name = {fromDisk:String} and database = {database:String} and table = {table:String} group by name;",
+		clickhouse.Named("fromDisk", fromDisk),
 		clickhouse.Named("database", database),
 		clickhouse.Named("table", table))
 	if err != nil {
@@ -131,10 +135,138 @@ func moveToHot(ctx context.Context, conn driver.Conn, database, table string) er
 			log.Fatal(err)
 			return err
 		}
-		fmt.Printf("Moving part:%s for table %s.%s\n", name, database, table)
+		fmt.Printf("Moving part: %s for table %s.%s to disk %s\n", name, database, table, toDisk)
+		fmtQuery := fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk '%s'", name, toDisk)
+		fmt.Printf("Query: %s\n", fmtQuery)
 		err = conn.Exec(
 			ctx,
-			fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk 'hot'", name),
+			fmtQuery,
+			clickhouse.Named("database", database),
+			clickhouse.Named("table", table),
+			clickhouse.Named("part_name", name))
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+	}
+	return nil
+}
+
+func drainDisk(ctx context.Context, conn driver.Conn, disk string) error {
+	fmt.Printf("Draining disk: %s\n", disk)
+
+	// Get all tables with active parts on disk to drain
+	dbTables, err := conn.Query(
+		ctx,
+		"select database, table from system.parts where active and disk_name = {disk:String} group by database, table;",
+		clickhouse.Named("disk", disk))
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+
+	for dbTables.Next() {
+		var (
+			database, table string
+		)
+		if err := dbTables.Scan(
+			&database,
+			&table,
+		); err != nil {
+			log.Fatal(err)
+			return err
+		}
+
+		// get the storage policy for the table
+		rows, err := conn.Query(
+			ctx,
+			"select storage_policy from system.tables where database = {database:String} and table = {table:String} group by storage_policy;",
+			clickhouse.Named("database", database),
+			clickhouse.Named("table", table))
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+		var storagePolicy string
+		for rows.Next() {
+			if err := rows.Scan(
+				&storagePolicy,
+			); err != nil {
+				log.Fatal(err)
+				return err
+			}
+		}
+
+		// get disks in storage policy
+		rows, err = conn.Query(
+			ctx,
+			"select disks from system.storage_policies where name = {storagePolicy:String} group by disks;",
+			clickhouse.Named("storagePolicy", storagePolicy))
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+		var disks []string
+		for rows.Next() {
+			if err := rows.Scan(
+				&disks,
+			); err != nil {
+				log.Fatal(err)
+				return err
+			}
+		}
+
+		
+		fmt.Printf("Moving parts for table: %s.%s from disk %s to disk %s\n", database, table, disk, "default")
+		// Get all parts for table on disk to drain
+		parts, err := conn.Query(
+			ctx,
+			"select name from system.parts where active and disk_name = {disk:String} and database = {database:String} and table = {table:String} group by name;",
+			clickhouse.Named("disk", disk),
+			clickhouse.Named("database", database),
+			clickhouse.Named("table", table))
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+		for parts.Next() {
+			var name string
+			if err := parts.Scan(
+				&name,
+			); err != nil {
+				log.Fatal(err)
+				return err
+			}
+
+			// chose a disk to move the table to
+
+
+
+	
+	rows, err := conn.Query(
+		ctx,
+		"select name from system.parts where active and disk_name = {fromDisk:String} and database = {database:String} and table = {table:String} group by name;",
+		clickhouse.Named("fromDisk", fromDisk),
+		clickhouse.Named("database", database),
+		clickhouse.Named("table", table))
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(
+			&name,
+		); err != nil {
+			log.Fatal(err)
+			return err
+		}
+		fmt.Printf("Moving part: %s for table %s.%s to disk %s\n", name, database, table, toDisk)
+		fmtQuery := fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk '%s'", name, toDisk)
+		fmt.Printf("Query: %s\n", fmtQuery)
+		err = conn.Exec(
+			ctx,
+			fmtQuery,
 			clickhouse.Named("database", database),
 			clickhouse.Named("table", table),
 			clickhouse.Named("part_name", name))
@@ -324,7 +456,7 @@ func connectUS() (driver.Conn, error) {
 					{Name: "an-example-go-client", Version: "0.1"},
 				},
 			},
-
+			ReadTimeout: 300 * time.Minute,
 			Debugf: func(format string, v ...interface{}) {
 				fmt.Printf(format, v)
 			},

@@ -333,7 +333,7 @@ func drainDisk(ctx context.Context, conn driver.Conn, disk string) error {
 				return err
 			}
 		}
-		
+
 		// Get all parts for table on disk to drain
 		parts, err := conn.Query(
 			ctx,
@@ -354,41 +354,41 @@ func drainDisk(ctx context.Context, conn driver.Conn, disk string) error {
 				return err
 			}
 
-			// chose a disk to move the table to
-		}
+			// chose a disk to move the table to based on available disk
+			toDisk, err := conn.Query(
+				ctx,
+				"select name from system.disks where name != {disk:String} and name in {disks:Array(String)} order by free_space desc limit 1;",
+				clickhouse.Named("disk", disk),
+				clickhouse.Named("disks", disks))
+			if err != nil {
+				log.Fatal(err)
+				return err
+			}
+			var toDiskName string
+			for toDisk.Next() {
+				if err := toDisk.Scan(
+					&toDiskName,
+				); err != nil {
+					log.Fatal(err)
+					return err
+				}
+			}
 
-
-	
-	rows, err := conn.Query(
-		ctx,
-		"select name from system.parts where active and disk_name = {fromDisk:String} and database = {database:String} and table = {table:String} group by name;",
-		clickhouse.Named("fromDisk", fromDisk),
-		clickhouse.Named("database", database),
-		clickhouse.Named("table", table))
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(
-			&name,
-		); err != nil {
-			log.Fatal(err)
-			return err
-		}
-		fmt.Printf("Moving part: %s for table %s.%s to disk %s\n", name, database, table, toDisk)
-		fmtQuery := fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk '%s'", name, toDisk)
-		fmt.Printf("Query: %s\n", fmtQuery)
-		err = conn.Exec(
-			ctx,
-			fmtQuery,
-			clickhouse.Named("database", database),
-			clickhouse.Named("table", table),
-			clickhouse.Named("part_name", name))
-		if err != nil {
-			log.Fatal(err)
-			return err
+			// move part to new disk
+			fmt.Printf("Moving part: %s for table %s.%s to disk %s\n", name, database, table, toDiskName)
+			fmtQuery := fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk '%s'", name, toDiskName)
+			fmt.Printf("Query: %s\n", fmtQuery)
+			err = conn.Exec(
+				ctx,
+				fmtQuery,
+				clickhouse.Named("database", database),
+				clickhouse.Named("table", table),
+				clickhouse.Named("part_name", name),
+				clickhouse.Named("toDiskName", toDiskName))
+			if err != nil {
+				log.Fatal(err)
+				return err
+			}
 		}
 	}
 	return nil

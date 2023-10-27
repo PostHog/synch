@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"log"
 	"time"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/go-co-op/gocron"
@@ -54,6 +55,24 @@ func main() {
 			ctx := context.Background()
 			testConection(ctx, connUS)
 			moveToHot(ctx, connUS, database, table)
+		},
+	})
+
+	cmd.AddCommand(&cobra.Command{
+		Use:   "dump-schema",
+		Short: "dump schema to file just include <database> as argument",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			var (
+				database = args[0]
+			)
+			connUS, err := connectUS()
+			if err != nil {
+				panic(err)
+			}
+			ctx := context.Background()
+			testConection(ctx, connUS)
+			dumpSchema(ctx, connUS, database)
 		},
 	})
 
@@ -109,6 +128,47 @@ func testConection(ctx context.Context, conn driver.Conn) {
 		}
 		log.Printf("name: %s, uuid: %s",
 			name, uuid)
+	}
+}
+
+func dumpTableSchema(ctx context.Context, conn driver.Conn, database, table string) {
+	rows, err := conn.Query(
+		ctx,
+		"SHOW CREATE TABLE {database:Identifier}.{table:Identifier};",
+		clickhouse.Named("database", database),
+		clickhouse.Named("table", table))
+	if err != nil {
+		log.Fatal(err)
+	}
+	for rows.Next() {
+		var (
+			row string
+		)
+		if err := rows.Scan(
+			&row,
+		); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("\n/* CREATE TABLE STATEMENT FOR TABLE:", table, " */")
+		fmt.Println(row)
+	}
+}
+
+func dumpSchema(ctx context.Context, conn driver.Conn, database string) {
+	rows, err := conn.Query(ctx, "select name from system.tables where database = {database:String} group by name order by name;", clickhouse.Named("database", database))
+	if err != nil {
+		log.Fatal(err)
+	}
+	for rows.Next() {
+		var (
+			tableName string
+		)
+		if err := rows.Scan(
+			&tableName,
+		); err != nil {
+			log.Fatal(err)
+		}
+		dumpTableSchema(ctx, conn, database, tableName)
 	}
 }
 

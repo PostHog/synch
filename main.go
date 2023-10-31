@@ -131,23 +131,22 @@ func main() {
 }
 
 func testConection(ctx context.Context, conn driver.Conn) {
-	rows, err := conn.Query(ctx, "SELECT name,toString(uuid) as uuid_str FROM system.tables LIMIT 5")
+	rows, err := conn.Query(ctx, "SELECT hostname(), version()")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for rows.Next() {
 		var (
-			name, uuid string
+			hostname, version string
 		)
 		if err := rows.Scan(
-			&name,
-			&uuid,
+			&hostname,
+			&version,
 		); err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("name: %s, uuid: %s",
-			name, uuid)
+		log.Printf("Connected to %s with server version of %s", hostname, version)
 	}
 }
 

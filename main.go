@@ -212,8 +212,51 @@ func moveTo(ctx context.Context, conn driver.Conn, database, table, fromDisk, to
 			return err
 		}
 		fmt.Printf("Moving part: %s for table %s.%s to disk %s\n", name, database, table, toDisk)
-		fmtQuery := fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk '%s'", name, toDisk)
-		fmt.Printf("Query: %s\n", fmtQuery)
+		fmtQuery := fmt.Sprintf("ALTER TABLE {database:Identifier}.{table:Identifier} move part '%s' to disk '%s'", name, toDisk)
+
+		done := make(chan bool)
+		go func() {
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					rows, err := conn.Query(
+						ctx,
+						"select database, table, elapsed, target_disk_name, target_disk_path, part_name, part_size, thread_id from system.moves",
+					)
+					if err != nil {
+						log.Fatal(err)
+					}
+					for rows.Next() {
+						var (
+							database       string
+							table          string
+							elapsed        float64
+							targetDiskName string
+							targetDiskPath string
+							partName       string
+							partSize       int64
+							threadID       int
+						)
+						if err := rows.Scan(
+							&database,
+							&table,
+							&elapsed,
+							&targetDiskName,
+							&targetDiskPath,
+							&partName,
+							&partSize,
+							&threadID,
+						); err != nil {
+							log.Fatal(err)
+						}
+						fmt.Printf("Moving part %s for table %s.%s to disk %s (%s) [elapsed: %f, size: %d, thread: %d]\n", partName, database, table, targetDiskName, targetDiskPath, elapsed, partSize, threadID)
+					}
+					time.Sleep(2 * time.Second)
+				}
+			}
+		}()
 		err = conn.Exec(
 			ctx,
 			fmtQuery,
@@ -222,8 +265,10 @@ func moveTo(ctx context.Context, conn driver.Conn, database, table, fromDisk, to
 			clickhouse.Named("part_name", name))
 		if err != nil {
 			log.Fatal(err)
+			done <- true
 			return err
 		}
+		done <- true
 	}
 	return nil
 }

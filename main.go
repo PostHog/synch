@@ -61,6 +61,26 @@ func main() {
 	})
 
 	cmd.AddCommand(&cobra.Command{
+		Use:   "drain-disk",
+		Short: "subcommand to move all parts of all tables from a disk to another disk <from_disk> <to_disk> as arguments",
+		Args:  cobra.MinimumNArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			var (
+				fromDisk = args[0]
+				toDisk   = args[1]
+			)
+			fmt.Printf("Moving parts to from disk %s to disk %s\n", fromDisk, toDisk)
+			connUS, err := connectUS()
+			if err != nil {
+				panic(err)
+			}
+			ctx := context.Background()
+			testConection(ctx, connUS)
+			drainDisk(ctx, connUS, fromDisk, toDisk)
+		},
+	})
+
+	cmd.AddCommand(&cobra.Command{
 		Use:   "dump-schema",
 		Short: "dump schema to file just include <database> as argument",
 		Args:  cobra.MinimumNArgs(1),
@@ -216,12 +236,18 @@ func moveTo(ctx context.Context, conn driver.Conn, database, table, fromDisk, to
 
 		done := make(chan bool)
 		go func() {
+
+			pollconn, err := connectUS()
+			if err != nil {
+				panic(err)
+			}
+			defer pollconn.Close()
 			for {
 				select {
 				case <-done:
 					return
 				default:
-					rows, err := conn.Query(
+					rows, err := pollconn.Query(
 						ctx,
 						"select database, table, elapsed, target_disk_name, target_disk_path, part_name, part_size, thread_id from system.moves",
 					)
@@ -236,8 +262,8 @@ func moveTo(ctx context.Context, conn driver.Conn, database, table, fromDisk, to
 							targetDiskName string
 							targetDiskPath string
 							partName       string
-							partSize       int64
-							threadID       int
+							partSize       uint64
+							threadID       uint64
 						)
 						if err := rows.Scan(
 							&database,
@@ -273,125 +299,40 @@ func moveTo(ctx context.Context, conn driver.Conn, database, table, fromDisk, to
 	return nil
 }
 
-func drainDisk(ctx context.Context, conn driver.Conn, disk string) error {
+func drainDisk(ctx context.Context, conn driver.Conn, disk, toDisk string) error {
 	fmt.Printf("Draining disk: %s\n", disk)
-
-	// Get all tables with active parts on disk to drain
-	dbTables, err := conn.Query(
-		ctx,
-		"select database, table from system.parts where active and disk_name = {disk:String} group by database, table;",
-		clickhouse.Named("disk", disk))
+	query := "select database, table, disk_name, sum(bytes) b, formatReadableSize(sum(bytes)) size, count(1) parts " +
+		"from system.parts where disk_name = {disk_name:String} group by database, table, disk_name order by disk_name desc;"
+	rows, err := conn.Query(ctx, query, clickhouse.Named("disk_name", disk))
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
-
-	for dbTables.Next() {
+	for rows.Next() {
 		var (
-			database, table string
+			database string
+			table    string
+			diskName string
+			bytes    uint64
+			size     string
+			parts    uint64
 		)
-		if err := dbTables.Scan(
+		if err := rows.Scan(
 			&database,
 			&table,
+			&diskName,
+			&bytes,
+			&size,
+			&parts,
 		); err != nil {
 			log.Fatal(err)
 			return err
 		}
-
-		// get the storage policy for the table
-		rows, err := conn.Query(
-			ctx,
-			"select storage_policy from system.tables where database = {database:String} and table = {table:String} group by storage_policy;",
-			clickhouse.Named("database", database),
-			clickhouse.Named("table", table))
+		fmt.Printf("Moving Table: %s.%s, Disk: %s, Parts: %d, Size: %s To Disk: %s\n", database, table, diskName, parts, size, toDisk)
+		err := moveTo(ctx, conn, database, table, disk, toDisk)
 		if err != nil {
 			log.Fatal(err)
 			return err
-		}
-		var storagePolicy string
-		for rows.Next() {
-			if err := rows.Scan(
-				&storagePolicy,
-			); err != nil {
-				log.Fatal(err)
-				return err
-			}
-		}
-
-		// get disks in storage policy
-		rows, err = conn.Query(
-			ctx,
-			"select disks from system.storage_policies where name = {storagePolicy:String} group by disks;",
-			clickhouse.Named("storagePolicy", storagePolicy))
-		if err != nil {
-			log.Fatal(err)
-			return err
-		}
-		var disks []string
-		for rows.Next() {
-			if err := rows.Scan(
-				&disks,
-			); err != nil {
-				log.Fatal(err)
-				return err
-			}
-		}
-
-		// Get all parts for table on disk to drain
-		parts, err := conn.Query(
-			ctx,
-			"select name from system.parts where active and disk_name = {disk:String} and database = {database:String} and table = {table:String} group by name;",
-			clickhouse.Named("disk", disk),
-			clickhouse.Named("database", database),
-			clickhouse.Named("table", table))
-		if err != nil {
-			log.Fatal(err)
-			return err
-		}
-		for parts.Next() {
-			var name string
-			if err := parts.Scan(
-				&name,
-			); err != nil {
-				log.Fatal(err)
-				return err
-			}
-
-			// chose a disk to move the table to based on available disk
-			toDisk, err := conn.Query(
-				ctx,
-				"select name from system.disks where name != {disk:String} and name in {disks:Array(String)} order by free_space desc limit 1;",
-				clickhouse.Named("disk", disk),
-				clickhouse.Named("disks", disks))
-			if err != nil {
-				log.Fatal(err)
-				return err
-			}
-			var toDiskName string
-			for toDisk.Next() {
-				if err := toDisk.Scan(
-					&toDiskName,
-				); err != nil {
-					log.Fatal(err)
-					return err
-				}
-			}
-
-			// move part to new disk
-			fmt.Printf("Moving part: %s for table %s.%s to disk %s\n", name, database, table, toDiskName)
-			fmtQuery := fmt.Sprintf("alter table {database:Identifier}.{table:Identifier} move part '%s' to disk '%s'", name, toDiskName)
-			fmt.Printf("Query: %s\n", fmtQuery)
-			err = conn.Exec(
-				ctx,
-				fmtQuery,
-				clickhouse.Named("database", database),
-				clickhouse.Named("table", table),
-				clickhouse.Named("part_name", name),
-				clickhouse.Named("toDiskName", toDiskName))
-			if err != nil {
-				log.Fatal(err)
-				return err
-			}
 		}
 	}
 	return nil

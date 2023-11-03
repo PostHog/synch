@@ -43,10 +43,13 @@ func worker(id int, queries <-chan Query, results chan<- QueryResult) {
 	for q := range queries {
 		start := time.Now()
 		queryErrored := false
+		errorStr := ""
 		log.Println("worker", id, "started  job", q)
 		err := conn.Exec(ctx, q.query)
 		if err != nil {
 			log.Warn(err)
+			queryErrored = true
+			errorStr = err.Error()
 		}
 		end := time.Now()
 		queryResult := QueryResult{
@@ -57,7 +60,7 @@ func worker(id int, queries <-chan Query, results chan<- QueryResult) {
 			replayDurationMs:   uint64(end.Sub(start).Milliseconds()),
 			deltaMs:            int64(q.queryDurationMs) - int64(end.Sub(start).Milliseconds()),
 			queryErrored:       queryErrored,
-			errorStr:           err.Error(),
+			errorStr:           errorStr,
 			query:              q.query,
 		}
 		results <- queryResult

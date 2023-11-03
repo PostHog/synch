@@ -96,10 +96,10 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 
 func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, cluster string, start, stop time.Time) error {
 	log.Info("Starting workers")
-	numWorkers := 1000
+	numWorkers := 100
 
-	queries := make(chan Query, numWorkers)
-	results := make(chan QueryResult, numWorkers)
+	queries := make(chan Query)
+	results := make(chan QueryResult)
 	var wg sync.WaitGroup
 	for w := 1; w <= numWorkers; w++ {
 		go worker(w, queries, results)
@@ -115,13 +115,15 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		"and query_start_time >= {start:String} and query_start_time <= {stop:String} "+
 		"group by query, query_start_time, query_duration_ms, query_kind "+
 		"order by query_start_time desc "+
-		"limit 100",
+		"limit 10000000",
 		clickhouse.Named("cluster", cluster),
 		clickhouse.Named("start", start.Format("2006-01-02")),
 		clickhouse.Named("stop", stop.Format("2006-01-02")))
 	if err != nil {
 		log.Fatal(err)
 	}
+	var lastQueryTS time.Time
+	lastRunTS := time.Now()
 	for rows.Next() {
 		var (
 			queryKind       string
@@ -143,9 +145,22 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 			queryStartTime:  queryStartTime,
 			queryDurationMs: queryDurationMs,
 		}
-		log.Info("Query of type: ", queryRow)
-		wg.Add(1)
-		queries <- queryRow
+		if lastQueryTS.IsZero() {
+			lastQueryTS = queryStartTime
+		}
+		for {
+			timeSinceLastRun := time.Since(lastRunTS)
+			timeToWait := queryStartTime.Sub(lastQueryTS)
+			log.Info("timeSinceLastRun: ", timeSinceLastRun, " LastQueryTS: ", lastQueryTS.Format(time.RFC3339), " NextQueryTS: ", queryStartTime.Format(time.RFC3339), " timeToWait: ", timeToWait)
+			if timeSinceLastRun > timeToWait {
+				wg.Add(1)
+				queries <- queryRow
+				lastQueryTS = queryStartTime
+				lastRunTS = time.Now()
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 	close(queries)
 	wg.Wait()

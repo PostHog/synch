@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/go-co-op/gocron"
@@ -145,14 +146,15 @@ func main() {
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "replay",
-		Short: "Replay a portion of query history from one cluster onto another, for benchmarking. Arguments are cluster, start and stop dates.",
-		Args:  cobra.MinimumNArgs(3),
+		Short: "Replay a portion of query history from one cluster onto another, for benchmarking. Arguments are cluster, start and stop dates and limit.",
+		Args:  cobra.MinimumNArgs(4),
 		Run: func(cmd *cobra.Command, args []string) {
 
 			var (
 				cluster  = args[0]
 				startStr = args[1]
 				stopStr  = args[2]
+				limitStr = args[3]
 			)
 
 			start, err := time.Parse("2006-01-02", startStr)
@@ -161,6 +163,11 @@ func main() {
 			}
 
 			stop, err := time.Parse("2006-01-02", stopStr)
+			if err != nil {
+				panic(err)
+			}
+
+			limit, err := strconv.Atoi(limitStr)
 			if err != nil {
 				panic(err)
 			}
@@ -179,7 +186,7 @@ func main() {
 			testConection(ctx, connEU)
 			testConection(ctx, connCloud)
 
-			err = replayQueryHistory(ctx, connEU, connCloud, cluster, start, stop)
+			err = replayQueryHistory(ctx, connEU, connCloud, cluster, start, stop, limit)
 			if err != nil {
 				panic(err)
 			}

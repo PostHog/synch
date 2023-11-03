@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/csv"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -109,7 +110,7 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 
 }
 
-func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, cluster string, start, stop time.Time) error {
+func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, cluster string, start, stop time.Time, limit int) error {
 	log.Info("Starting workers")
 	numWorkers := 1000
 
@@ -124,13 +125,14 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 	go csvWriter(results, &wg)
 
 	log.Infof("Replaying query history from %s to %s", start.Format("2006-01-02"), stop.Format("2006-01-02"))
-	rows, err := fromConn.Query(ctx, "select query_kind, query, query_start_time, query_duration_ms "+
-		"from clusterAllReplicas({cluster:String}, system.query_log) "+
-		"where type = 2 and is_initial_query = 1 and query_kind = 'Select' "+
-		"and query_start_time >= {start:String} and query_start_time <= {stop:String} "+
-		"group by query, query_start_time, query_duration_ms, query_kind "+
-		"order by query_start_time desc "+
-		"limit 10000000",
+	rows, err := fromConn.Query(ctx,
+		fmt.Sprintf("select query_kind, query, query_start_time, query_duration_ms "+
+			"from clusterAllReplicas({cluster:String}, system.query_log) "+
+			"where type = 2 and is_initial_query = 1 and query_kind = 'Select' "+
+			"and query_start_time >= {start:String} and query_start_time <= {stop:String} "+
+			"group by query, query_start_time, query_duration_ms, query_kind "+
+			"order by query_start_time asc "+
+			"limit %d", limit),
 		clickhouse.Named("cluster", cluster),
 		clickhouse.Named("start", start.Format("2006-01-02")),
 		clickhouse.Named("stop", stop.Format("2006-01-02")))
@@ -164,7 +166,9 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 			tsOffset = time.Since(queryStartTime)
 		}
 		for {
-			if queryStartTime.After(time.Now().Add(-tsOffset)) {
+			virtualTime := time.Now().UTC().Add(-tsOffset)
+			log.Info("Virtual time: ", virtualTime, " Query start time: ", queryStartTime)
+			if queryStartTime.Before(virtualTime) {
 				wg.Add(1)
 				queries <- queryRow
 				break

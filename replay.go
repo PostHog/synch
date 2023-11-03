@@ -28,28 +28,36 @@ type QueryResult struct {
 	replayStartTime    time.Time
 	replayDurationMs   uint64
 	deltaMs            uint64
+	queryErrored       bool
 }
 
 func worker(id int, queries <-chan Query, results chan<- QueryResult) {
 	log.Info("Starting worker: ", id)
 	// TODO: fix this to be more dynamic and not just connect to cloud
-	_, err := connectCloud()
+	conn, err := connectCloud()
+	ctx := context.Background()
 	if err != nil {
 		panic(err)
 	}
 	for q := range queries {
+		start := time.Now()
+		queryErrored := false
 		log.Println("worker", id, "started  job", q)
+		err := conn.Exec(ctx, q.query)
+		if err != nil {
+			log.Warn(err)
+		}
+		end := time.Now()
 		queryResult := QueryResult{
 			queryKind:          q.queryKind,
 			query:              q.query,
 			originalStartTime:  q.queryStartTime,
 			originalDurationMs: q.queryDurationMs,
-			replayStartTime:    time.Now(),
-			replayDurationMs:   0,
-			deltaMs:            0,
+			replayStartTime:    start,
+			replayDurationMs:   uint64(end.Sub(start).Milliseconds()),
+			deltaMs:            q.queryDurationMs - uint64(end.Sub(start).Milliseconds()),
+			queryErrored:       queryErrored,
 		}
-		time.Sleep(time.Second)
-		log.Println("worker", id, "finished job", q)
 		results <- queryResult
 	}
 }
@@ -96,7 +104,7 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 
 func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, cluster string, start, stop time.Time) error {
 	log.Info("Starting workers")
-	numWorkers := 100
+	numWorkers := 1000
 
 	queries := make(chan Query)
 	results := make(chan QueryResult)

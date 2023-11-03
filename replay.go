@@ -151,7 +151,6 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		for {
 			timeSinceLastRun := time.Since(lastRunTS)
 			timeToWait := queryStartTime.Sub(lastQueryTS)
-			log.Info("timeSinceLastRun: ", timeSinceLastRun, " LastQueryTS: ", lastQueryTS.Format(time.RFC3339), " NextQueryTS: ", queryStartTime.Format(time.RFC3339), " timeToWait: ", timeToWait)
 			if timeSinceLastRun > timeToWait {
 				wg.Add(1)
 				queries <- queryRow
@@ -159,7 +158,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 				lastRunTS = time.Now()
 				break
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 	close(queries)

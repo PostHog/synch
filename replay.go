@@ -27,8 +27,9 @@ type QueryResult struct {
 	originalDurationMs uint64
 	replayStartTime    time.Time
 	replayDurationMs   uint64
-	deltaMs            uint64
+	deltaMs            int64
 	queryErrored       bool
+	errorStr           string
 }
 
 func worker(id int, queries <-chan Query, results chan<- QueryResult) {
@@ -50,13 +51,14 @@ func worker(id int, queries <-chan Query, results chan<- QueryResult) {
 		end := time.Now()
 		queryResult := QueryResult{
 			queryKind:          q.queryKind,
-			query:              q.query,
 			originalStartTime:  q.queryStartTime,
 			originalDurationMs: q.queryDurationMs,
 			replayStartTime:    start,
 			replayDurationMs:   uint64(end.Sub(start).Milliseconds()),
-			deltaMs:            q.queryDurationMs - uint64(end.Sub(start).Milliseconds()),
+			deltaMs:            int64(q.queryDurationMs) - int64(end.Sub(start).Milliseconds()),
 			queryErrored:       queryErrored,
+			errorStr:           err.Error(),
+			query:              q.query,
 		}
 		results <- queryResult
 	}
@@ -84,10 +86,12 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 				strconv.Itoa(i),
 				r.query,
 				r.originalStartTime.Format(time.RFC3339),
-				r.replayStartTime.Format(time.RFC3339),
 				strconv.FormatUint(r.originalDurationMs, 10),
+				r.replayStartTime.Format(time.RFC3339),
 				strconv.FormatUint(r.replayDurationMs, 10),
-				strconv.FormatUint(r.deltaMs, 10),
+				strconv.FormatInt(r.deltaMs, 10),
+				strconv.FormatBool(r.queryErrored),
+				r.errorStr,
 			}); err != nil {
 			log.Fatalln("error writing record to csv:", err)
 			wg.Done()

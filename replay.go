@@ -137,8 +137,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 	if err != nil {
 		log.Fatal(err)
 	}
-	var lastQueryTS time.Time
-	lastRunTS := time.Now()
+	var tsOffset time.Duration
 	for rows.Next() {
 		var (
 			queryKind       string
@@ -160,17 +159,14 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 			queryStartTime:  queryStartTime,
 			queryDurationMs: queryDurationMs,
 		}
-		if lastQueryTS.IsZero() {
-			lastQueryTS = queryStartTime
+		if tsOffset == 0 {
+			// this is the first loop - set a few ts vars
+			tsOffset = time.Since(queryStartTime)
 		}
 		for {
-			timeSinceLastRun := time.Since(lastRunTS)
-			timeToWait := queryStartTime.Sub(lastQueryTS)
-			if timeSinceLastRun > timeToWait {
+			if queryStartTime.After(time.Now().Add(-tsOffset)) {
 				wg.Add(1)
 				queries <- queryRow
-				lastQueryTS = queryStartTime
-				lastRunTS = time.Now()
 				break
 			}
 			time.Sleep(10 * time.Millisecond)

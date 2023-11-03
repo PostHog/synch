@@ -112,7 +112,6 @@ func main() {
 		},
 	})
 
-	// Add additional commands to the command
 	cmd.AddCommand(&cobra.Command{
 		Use:   "synctable",
 		Short: "subcommand to sync a table across clusters",
@@ -143,5 +142,50 @@ func main() {
 			s.StartBlocking()
 		},
 	})
+
+	cmd.AddCommand(&cobra.Command{
+		Use:   "replay",
+		Short: "Replay a portion of query history from one cluster onto another, for benchmarking. Arguments are cluster, start and stop dates.",
+		Args:  cobra.MinimumNArgs(3),
+		Run: func(cmd *cobra.Command, args []string) {
+
+			var (
+				cluster  = args[0]
+				startStr = args[1]
+				stopStr  = args[2]
+			)
+
+			start, err := time.Parse("2006-01-02", startStr)
+			if err != nil {
+				panic(err)
+			}
+
+			stop, err := time.Parse("2006-01-02", stopStr)
+			if err != nil {
+				panic(err)
+			}
+
+			connEU, err := connectEU()
+			if err != nil {
+				panic((err))
+			}
+
+			connCloud, err := connectCloud()
+			if err != nil {
+				panic((err))
+			}
+
+			ctx := context.Background()
+			testConection(ctx, connEU)
+			testConection(ctx, connCloud)
+
+			err = replayQueryHistory(ctx, connEU, connCloud, cluster, start, stop)
+			if err != nil {
+				panic(err)
+			}
+		},
+	})
+
+	// LETS GOOOOO
 	cmd.Execute()
 }

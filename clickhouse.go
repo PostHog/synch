@@ -100,6 +100,14 @@ func connectEU() (driver.Conn, error) {
 			TLS: &tls.Config{
 				InsecureSkipVerify: true,
 			},
+			Settings: clickhouse.Settings{
+				"move_all_conditions_to_prewhere":                      1,
+				"enable_multiple_prewhere_read_steps":                  0,
+				"use_hedged_requests":                                  0,
+				"allow_experimental_parallel_reading_from_replicas":    1,
+				"max_parallel_replicas":                                6,
+				"parallel_replicas_single_task_marks_count_multiplier": 0.125,
+			},
 		})
 	)
 

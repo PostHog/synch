@@ -152,7 +152,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 			&queryStartTime,
 			&queryDurationMs,
 		); err != nil {
-			log.Fatal(err)
+			log.Warn(err)
 		}
 		queryRow := Query{
 			queryKind:       queryKind,

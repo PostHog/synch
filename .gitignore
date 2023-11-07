@@ -23,3 +23,5 @@ go.work
 synch
 synch_linux
 output.csv
+duck.db
+duckdb.sql

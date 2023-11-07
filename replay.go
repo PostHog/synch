@@ -88,7 +88,6 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 		if err := writer.Write(
 			[]string{
 				strconv.Itoa(i),
-				r.query,
 				r.originalStartTime.Format(time.RFC3339),
 				strconv.FormatUint(r.originalDurationMs, 10),
 				r.replayStartTime.Format(time.RFC3339),
@@ -96,6 +95,7 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 				strconv.FormatInt(r.deltaMs, 10),
 				strconv.FormatBool(r.queryErrored),
 				r.errorStr,
+				r.query,
 			}); err != nil {
 			log.Fatalln("error writing record to csv:", err)
 			wg.Done()
@@ -110,7 +110,7 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 
 }
 
-func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, cluster string, start, stop time.Time, limit int) error {
+func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, cluster string, start, stop time.Time) error {
 	log.Info("Starting workers")
 	numWorkers := 1000
 
@@ -131,8 +131,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 			"where type = 2 and is_initial_query = 1 and query_kind = 'Select' "+
 			"and query_start_time >= {start:String} and query_start_time <= {stop:String} "+
 			"group by query, query_start_time, query_duration_ms, query_kind "+
-			"order by query_start_time asc "+
-			"limit %d", limit),
+			"order by query_start_time asc "),
 		clickhouse.Named("cluster", cluster),
 		clickhouse.Named("start", start.Format("2006-01-02")),
 		clickhouse.Named("stop", stop.Format("2006-01-02")))

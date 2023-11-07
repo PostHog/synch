@@ -14,7 +14,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/synch.git
+git clone https://github.com/posthog/synch.git
 
 # Navigate to the synch directory
 cd synch

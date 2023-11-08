@@ -145,7 +145,6 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 	if err != nil {
 		log.Fatalf("failed creating file: %s", err)
 	}
-	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
@@ -180,7 +179,14 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 
 		writer.Flush()
 	}
-	file.Seek(0, io.SeekStart)
+	file.Close()
+
+	file, err = os.OpenFile("queries.csv", os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		log.Fatalf("failed opening file: %s", err)
+	}
+	defer file.Close()
+
 	r := csv.NewReader(file)
 	var tsOffset time.Duration
 	for {

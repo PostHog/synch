@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"sync"
@@ -138,7 +139,16 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 	if err != nil {
 		log.Fatal(err)
 	}
-	var tsOffset time.Duration
+
+	// Create a new CSV file
+	file, err := os.Create("queries.csv")
+	if err != nil {
+		log.Fatalf("failed creating file: %s", err)
+	}
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
 	for rows.Next() {
 		var (
 			queryKind       string
@@ -154,6 +164,44 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		); err != nil {
 			log.Warn(err)
 		}
+
+		if err := writer.Write(
+			[]string{
+				queryKind,
+				query,
+				queryStartTime.Format(time.RFC3339),
+				strconv.FormatUint(queryDurationMs, 10),
+			}); err != nil {
+			log.Fatalln("error writing record to csv:", err)
+		}
+		if err != nil {
+			log.Warn(err)
+		}
+
+		writer.Flush()
+	}
+	file.Seek(0, io.SeekStart)
+	r := csv.NewReader(file)
+	var tsOffset time.Duration
+	for {
+		record, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Warn(err)
+		}
+		queryKind := record[0]
+		query := record[1]
+		queryStartTime, err := time.Parse(time.RFC3339, record[2])
+		if err != nil {
+			log.Warn(err)
+		}
+		queryDurationMs, err := strconv.ParseUint(record[3], 10, 64)
+		if err != nil {
+			log.Warn(err)
+		}
+
 		queryRow := Query{
 			queryKind:       queryKind,
 			query:           query,

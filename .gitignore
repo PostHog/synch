@@ -23,6 +23,7 @@ go.work
 synch
 synch_linux
 output.csv
+output.csv.gz
 duck.db
 duckdb.sql
 .idea/

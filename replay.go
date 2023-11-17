@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/csv"
-	"fmt"
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +33,79 @@ type QueryResult struct {
 	deltaMs            int64
 	queryErrored       bool
 	errorStr           string
+}
+
+func loadSkipQueries(file string) ([]string, error) {
+	var skipQueries []string
+	f, err := os.Open(file)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		// Split on semicolons instead of newlines
+		for i := 0; i < len(data); i++ {
+			if data[i] == ';' {
+				return i + 1, data[:i], nil
+			}
+		}
+		if atEOF && len(data) > 0 {
+			return len(data), data, nil
+		}
+		return 0, nil, nil
+	})
+
+	for scanner.Scan() {
+		query := scanner.Text()
+		query = strings.TrimSpace(query)
+		query = strings.ReplaceAll(query, "\n", " ")
+		skipQueries = append(skipQueries, query)
+	}
+	if err := scanner.Err(); err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	return skipQueries, nil
+}
+
+func getSkipQueryHashes(querySkipFile string, conn driver.Conn) ([]string, error) {
+	var skipQueryHashes []string
+
+	skipQueries, err := loadSkipQueries(querySkipFile)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	query := `
+		select normalized_query_hash from system.query_log
+		where type = 2 and is_initial_query = 1 and query_kind = 'Select'
+		and query_start_time >= {start:String} and query_start_time <= {stop:String} 
+		and query in ('` + strings.Join(skipQueries, `','`) + `')	
+		group by normalized_query_hash
+	 `
+
+	rows, err := conn.Query(context.Background(), query, clickhouse.Named("start", "2021-01-01"), clickhouse.Named("stop", "2021-01-02"))
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	for rows.Next() {
+		var (
+			queryHash string
+		)
+		if err := rows.Scan(
+			&queryHash,
+		); err != nil {
+			log.Error(err)
+			return nil, err
+		}
+		skipQueryHashes = append(skipQueryHashes, queryHash)
+	}
+	return skipQueryHashes, nil
 }
 
 func worker(id int, queries <-chan Query, results chan<- QueryResult) {
@@ -111,7 +185,7 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 
 }
 
-func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, cluster string, start, stop time.Time) error {
+func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, cluster string, start, stop time.Time, skip_file string) error {
 	log.Info("Starting workers")
 	numWorkers := 1000
 
@@ -125,14 +199,23 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 	// start the csv writer
 	go csvWriter(results, &wg)
 
+	// load the skip queries
+	skipHashes, err := getSkipQueryHashes(skip_file, fromConn)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	log.Infof("Replaying query history from %s to %s", start.Format("2006-01-02"), stop.Format("2006-01-02"))
 	rows, err := fromConn.Query(ctx,
-		fmt.Sprintf("select query_kind, query, query_start_time, query_duration_ms "+
-			"from clusterAllReplicas({cluster:String}, system.query_log) "+
-			"where type = 2 and is_initial_query = 1 and query_kind = 'Select' "+
-			"and query_start_time >= {start:String} and query_start_time <= {stop:String} "+
-			"group by query, query_start_time, query_duration_ms, query_kind "+
-			"order by query_start_time asc "),
+		`
+		select query_kind, query, query_start_time_microseconds, query_duration_ms 
+		from clusterAllReplicas({cluster:String}, system.query_log)
+		where type = 2 and is_initial_query = 1 and query_kind = 'Select'
+		and query_start_time >= {start:String} and query_start_time <= {stop:String}
+		and normalized_query_hash not in ('`+strings.Join(skipHashes, `','`)+`')		
+		group by query, query_start_time, query_duration_ms, query_kind
+		order by query_start_time asc)
+		`,
 		clickhouse.Named("cluster", cluster),
 		clickhouse.Named("start", start.Format("2006-01-02")),
 		clickhouse.Named("stop", stop.Format("2006-01-02")))

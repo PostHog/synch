@@ -153,6 +153,7 @@ func main() {
 				cluster  = args[0]
 				startStr = args[1]
 				stopStr  = args[2]
+				skipFile = args[3]
 			)
 
 			start, err := time.Parse("2006-01-02", startStr)
@@ -179,7 +180,7 @@ func main() {
 			testConection(ctx, connEU)
 			testConection(ctx, connCloud)
 
-			err = replayQueryHistory(ctx, connEU, connCloud, cluster, start, stop)
+			err = replayQueryHistory(ctx, connEU, connCloud, cluster, start, stop, skipFile)
 			if err != nil {
 				panic(err)
 			}

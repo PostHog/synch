@@ -74,6 +74,9 @@ func loadSkipQueries(file string) ([]string, error) {
 func buildQueryLogQuery(skipQueries []string) (string, error) {
 	skipQueriesStr := []string{}
 	for _, q := range skipQueries {
+		q = strings.TrimSpace(q)
+		q = strings.ReplaceAll(q, "\"", "\\\"")
+		q = strings.ReplaceAll(q, "'", "\\'")
 		skipQueriesStr = append(skipQueriesStr, "query like '%"+q+"%'")
 	}
 

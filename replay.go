@@ -247,7 +247,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		where type = 2 and is_initial_query = 1 and query_kind = 'Select'
 		and query_start_time >= {start:String} and query_start_time <= {stop:String}
 		and normalized_query_hash not in (` + strings.Join(skipHashesStr, `, `) + `)		
-		group by query, query_start_time, query_duration_ms, query_kind
+		group by query, query_start_time_microseconds, query_duration_ms, query_kind
 		order by query_start_time asc
 		`
 

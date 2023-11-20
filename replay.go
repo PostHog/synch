@@ -98,7 +98,7 @@ group by normalized_query_hash
 	return query, nil
 }
 
-func getSkipQueryHashes(querySkipFile string, conn driver.Conn) ([]string, error) {
+func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver.Conn) ([]string, error) {
 	var skipQueryHashes []string
 
 	skipQueries, err := loadSkipQueries(querySkipFile)
@@ -113,7 +113,11 @@ func getSkipQueryHashes(querySkipFile string, conn driver.Conn) ([]string, error
 		return nil, err
 	}
 
-	rows, err := conn.Query(context.Background(), query, clickhouse.Named("start", "2021-01-01"), clickhouse.Named("stop", "2021-01-02"))
+	rows, err := conn.Query(
+		context.Background(),
+		query,
+		clickhouse.Named("start", start.Format("2006-01-02")),
+		clickhouse.Named("stop", stop.Format("2006-01-02")))
 	if err != nil {
 		log.Error(err, query)
 		return nil, err
@@ -225,7 +229,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 	go csvWriter(results, &wg)
 
 	// load the skip queries
-	skipHashes, err := getSkipQueryHashes(skip_file, fromConn)
+	skipHashes, err := getSkipQueryHashes(skip_file, start, stop, fromConn)
 	if err != nil {
 		log.Fatal(err)
 	}

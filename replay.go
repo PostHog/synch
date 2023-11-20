@@ -98,8 +98,8 @@ group by normalized_query_hash
 	return query, nil
 }
 
-func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver.Conn) ([]string, error) {
-	var skipQueryHashes []string
+func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver.Conn) ([]uint, error) {
+	var skipQueryHashes []uint
 
 	skipQueries, err := loadSkipQueries(querySkipFile)
 	if err != nil {
@@ -124,7 +124,7 @@ func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver
 	}
 	for rows.Next() {
 		var (
-			queryHash string
+			queryHash uint
 		)
 		if err := rows.Scan(
 			&queryHash,
@@ -234,6 +234,11 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		log.Fatal(err)
 	}
 
+	skipHashesStr := []string{}
+	for _, h := range skipHashes {
+		skipHashesStr = append(skipHashesStr, strconv.FormatUint(uint64(h), 10))
+	}
+
 	log.Infof("Replaying query history from %s to %s", start.Format("2006-01-02"), stop.Format("2006-01-02"))
 	rows, err := fromConn.Query(ctx,
 		`
@@ -241,7 +246,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		from clusterAllReplicas({cluster:String}, system.query_log)
 		where type = 2 and is_initial_query = 1 and query_kind = 'Select'
 		and query_start_time >= {start:String} and query_start_time <= {stop:String}
-		and normalized_query_hash not in ('`+strings.Join(skipHashes, `','`)+`')		
+		and normalized_query_hash not in ('`+strings.Join(skipHashesStr, `','`)+`')		
 		group by query, query_start_time, query_duration_ms, query_kind
 		order by query_start_time asc)
 		`,

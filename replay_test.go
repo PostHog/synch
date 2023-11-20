@@ -51,8 +51,20 @@ func TestBuildQueryLogQuery(t *testing.T) {
 			want: `
 select normalized_query_hash from system.query_log
 where type = 2 and is_initial_query = 1 and query_kind = 'Select'
-and query_start_time >= {start:String} and query_start_time <= {stop:String} 
+and query_start_time >= {start:String} and query_start_time <= {stop:String}
 and (query like '%SELECT * FROM table1%' or query like '%SELECT * FROM table2%')
+group by normalized_query_hash
+`,
+			wantErr: false,
+		},
+		{
+			name:        "no queries",
+			skipQueries: []string{},
+			want: `
+select normalized_query_hash from system.query_log
+where type = 2 and is_initial_query = 1 and query_kind = 'Select'
+and query_start_time >= {start:String} and query_start_time <= {stop:String}
+
 group by normalized_query_hash
 `,
 			wantErr: false,

@@ -87,7 +87,7 @@ func buildQueryLogQuery(skipQueries []string) (string, error) {
 	query := `
 select normalized_query_hash from system.query_log
 where type = 2 and is_initial_query = 1 and query_kind = 'Select'
-and query_start_time >= {start:String} and query_start_time <= {stop:String} 
+and query_start_time >= {start:String} and query_start_time <= {stop:String}
 ` + skipQueriesPredicate + `
 group by normalized_query_hash
 `

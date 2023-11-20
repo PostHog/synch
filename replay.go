@@ -115,7 +115,7 @@ func getSkipQueryHashes(querySkipFile string, conn driver.Conn) ([]string, error
 
 	rows, err := conn.Query(context.Background(), query, clickhouse.Named("start", "2021-01-01"), clickhouse.Named("stop", "2021-01-02"))
 	if err != nil {
-		log.Error(err)
+		log.Error(err, query)
 		return nil, err
 	}
 	for rows.Next() {

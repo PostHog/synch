@@ -95,6 +95,8 @@ and query_start_time >= {start:String} and query_start_time <= {stop:String}
 ` + skipQueriesPredicate + `
 group by normalized_query_hash
 `
+
+	log.Info("Query Log Query", query)
 	return query, nil
 }
 
@@ -236,25 +238,27 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 
 	skipHashesStr := []string{}
 	for _, h := range skipHashes {
-		skipHashesStr = append(skipHashesStr, strconv.FormatUint(uint64(h), 10))
+		skipHashesStr = append(skipHashesStr, strconv.FormatUint(h, 10))
 	}
 
-	log.Infof("Replaying query history from %s to %s", start.Format("2006-01-02"), stop.Format("2006-01-02"))
-	rows, err := fromConn.Query(ctx,
-		`
+	query := `
 		select query_kind, query, query_start_time_microseconds, query_duration_ms 
 		from clusterAllReplicas({cluster:String}, system.query_log)
 		where type = 2 and is_initial_query = 1 and query_kind = 'Select'
 		and query_start_time >= {start:String} and query_start_time <= {stop:String}
-		and normalized_query_hash not in ('`+strings.Join(skipHashesStr, `','`)+`')		
+		and normalized_query_hash not in (` + strings.Join(skipHashesStr, `, `) + `)		
 		group by query, query_start_time, query_duration_ms, query_kind
-		order by query_start_time asc)
-		`,
+		order by query_start_time asc
+		`
+
+	log.Infof("Replaying query history from %s to %s", start.Format("2006-01-02"), stop.Format("2006-01-02"))
+	rows, err := fromConn.Query(ctx,
+		query,
 		clickhouse.Named("cluster", cluster),
 		clickhouse.Named("start", start.Format("2006-01-02")),
 		clickhouse.Named("stop", stop.Format("2006-01-02")))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(query, err)
 	}
 
 	// Create a new CSV file

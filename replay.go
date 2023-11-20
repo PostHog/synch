@@ -194,9 +194,9 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 		if err := writer.Write(
 			[]string{
 				strconv.Itoa(i),
-				r.originalStartTime.Format(time.RFC3339),
+				r.originalStartTime.Format(time.RFC3339Nano),
 				strconv.FormatUint(r.originalDurationMs, 10),
-				r.replayStartTime.Format(time.RFC3339),
+				r.replayStartTime.Format(time.RFC3339Nano),
 				strconv.FormatUint(r.replayDurationMs, 10),
 				strconv.FormatInt(r.deltaMs, 10),
 				strconv.FormatBool(r.queryErrored),
@@ -289,7 +289,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 			[]string{
 				queryKind,
 				query,
-				queryStartTime.Format(time.RFC3339),
+				queryStartTime.Format(time.RFC3339Nano),
 				strconv.FormatUint(queryDurationMs, 10),
 			}); err != nil {
 			log.Fatalln("error writing record to csv:", err)
@@ -320,7 +320,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		}
 		queryKind := record[0]
 		query := record[1]
-		queryStartTime, err := time.Parse(time.RFC3339, record[2])
+		queryStartTime, err := time.Parse(time.RFC3339Nano, record[2])
 		if err != nil {
 			log.Warn(err)
 		}

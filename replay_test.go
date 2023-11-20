@@ -47,7 +47,7 @@ func TestBuildQueryLogQuery(t *testing.T) {
 	}{
 		{
 			name:        "valid queries",
-			skipQueries: []string{"SELECT * FROM table1", "SELECT * FROM table2"},
+			skipQueries: []string{"SELECT * FROM table1", "SELECT * FROM table2;"},
 			want: `
 select normalized_query_hash from system.query_log
 where type = 2 and is_initial_query = 1 and query_kind = 'Select'
@@ -59,7 +59,7 @@ group by normalized_query_hash
 		},
 		{
 			name:        "valid queries with quotes",
-			skipQueries: []string{"SELECT * FROM table1 where is = 'something'", "SELECT * FROM table2 where foo = \"bar\""},
+			skipQueries: []string{"SELECT * FROM table1 where is = 'something';", "SELECT * FROM table2 where foo = \"bar\""},
 			want: `
 select normalized_query_hash from system.query_log
 where type = 2 and is_initial_query = 1 and query_kind = 'Select'

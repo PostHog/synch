@@ -71,6 +71,29 @@ func loadSkipQueries(file string) ([]string, error) {
 	return skipQueries, nil
 }
 
+func buildQueryLogQuery(skipQueries []string) (string, error) {
+	skipQueriesStr := []string{}
+	for _, q := range skipQueries {
+		skipQueriesStr = append(skipQueriesStr, "query like '%"+q+"%'")
+	}
+
+	var skipQueriesPredicate string
+	if len(skipQueriesStr) == 0 {
+		skipQueriesPredicate = ""
+	} else {
+		skipQueriesPredicate = `and (` + strings.Join(skipQueriesStr, " or ") + `)`
+	}
+
+	query := `
+select normalized_query_hash from system.query_log
+where type = 2 and is_initial_query = 1 and query_kind = 'Select'
+and query_start_time >= {start:String} and query_start_time <= {stop:String} 
+` + skipQueriesPredicate + `
+group by normalized_query_hash
+`
+	return query, nil
+}
+
 func getSkipQueryHashes(querySkipFile string, conn driver.Conn) ([]string, error) {
 	var skipQueryHashes []string
 
@@ -80,13 +103,11 @@ func getSkipQueryHashes(querySkipFile string, conn driver.Conn) ([]string, error
 		return nil, err
 	}
 
-	query := `
-		select normalized_query_hash from system.query_log
-		where type = 2 and is_initial_query = 1 and query_kind = 'Select'
-		and query_start_time >= {start:String} and query_start_time <= {stop:String} 
-		and query in ('` + strings.Join(skipQueries, `','`) + `')	
-		group by normalized_query_hash
-	 `
+	query, err := buildQueryLogQuery(skipQueries)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
 
 	rows, err := conn.Query(context.Background(), query, clickhouse.Named("start", "2021-01-01"), clickhouse.Named("stop", "2021-01-02"))
 	if err != nil {

@@ -248,7 +248,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		and query_start_time >= {start:String} and query_start_time <= {stop:String}
 		and normalized_query_hash not in (` + strings.Join(skipHashesStr, `, `) + `)		
 		group by query, query_start_time_microseconds, query_duration_ms, query_kind
-		order by query_start_time asc
+		order by query_start_time_microseconds asc
 		`
 
 	log.Infof("Replaying query history from %s to %s", start.Format("2006-01-02"), stop.Format("2006-01-02"))

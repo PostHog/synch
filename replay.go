@@ -98,8 +98,8 @@ group by normalized_query_hash
 	return query, nil
 }
 
-func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver.Conn) ([]uint, error) {
-	var skipQueryHashes []uint
+func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver.Conn) ([]uint64, error) {
+	var skipQueryHashes []uint64
 
 	skipQueries, err := loadSkipQueries(querySkipFile)
 	if err != nil {
@@ -124,7 +124,7 @@ func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver
 	}
 	for rows.Next() {
 		var (
-			queryHash uint
+			queryHash uint64
 		)
 		if err := rows.Scan(
 			&queryHash,

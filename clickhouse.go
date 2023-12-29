@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -34,6 +34,7 @@ func testConection(ctx context.Context, conn driver.Conn) {
 
 func connectCloud() (driver.Conn, error) {
 	addr := fmt.Sprintf("%s:%d", viper.GetString("CLICKHOUSE_CLOUD_HOSTNAME"), viper.GetInt("CLICKHOUSE_CLOUD_PORT"))
+	log.Infoln("Connecting to ClickHouse Cloud at ", addr)
 	var (
 		ctx       = context.Background()
 		conn, err = clickhouse.Open(&clickhouse.Options{
@@ -48,7 +49,7 @@ func connectCloud() (driver.Conn, error) {
 					Name    string
 					Version string
 				}{
-					{Name: "an-example-go-client", Version: "0.1"},
+					{Name: "synch benchmark", Version: "0.1"},
 				},
 			},
 
@@ -56,12 +57,12 @@ func connectCloud() (driver.Conn, error) {
 				fmt.Printf(format, v)
 			},
 			Settings: clickhouse.Settings{
-				"move_all_conditions_to_prewhere":                      1,
-				"enable_multiple_prewhere_read_steps":                  0,
-				"use_hedged_requests":                                  0,
-				"allow_experimental_parallel_reading_from_replicas":    1,
-				"max_parallel_replicas":                                6,
-				"parallel_replicas_single_task_marks_count_multiplier": 0.125,
+				// "move_all_conditions_to_prewhere":                      1,
+				// "enable_multiple_prewhere_read_steps":                  0,
+				// "use_hedged_requests":                                  0,
+				// "allow_experimental_parallel_reading_from_replicas":    1,
+				// "max_parallel_replicas":                                6,
+				// "parallel_replicas_single_task_marks_count_multiplier": 0.125,
 			},
 			TLS: &tls.Config{
 				InsecureSkipVerify: true,
@@ -70,13 +71,15 @@ func connectCloud() (driver.Conn, error) {
 	)
 
 	if err != nil {
+		log.Errorln("Error connecting to ClickHouse Cloud")
 		return nil, err
 	}
 
 	if err := conn.Ping(ctx); err != nil {
 		if exception, ok := err.(*clickhouse.Exception); ok {
-			fmt.Printf("Exception [%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
+			log.Errorf("Exception [%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
 		}
+		log.Errorln("Error Pinging ClickHouse Cloud")
 		return nil, err
 	}
 	return conn, nil

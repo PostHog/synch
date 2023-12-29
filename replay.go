@@ -151,6 +151,9 @@ func worker(id int, queries <-chan Query, results chan<- QueryResult) {
 		start := time.Now()
 		queryErrored := false
 		errorStr := ""
+		// This is a hack to remove the allow_experimental_object_type=1 from the query
+		// this is not allowed on clickhouse cloud
+		q.query = strings.ReplaceAll(q.query, ", allow_experimental_object_type=1", " ")
 		log.Println("worker", id, "started  job", q)
 		err := conn.Exec(ctx, q.query)
 		if err != nil {

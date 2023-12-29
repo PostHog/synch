@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/go-co-op/gocron"
 	"github.com/joho/godotenv"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -153,27 +153,35 @@ func main() {
 				cluster  = args[0]
 				startStr = args[1]
 				stopStr  = args[2]
-				skipFile = args[3]
+				skipFile string
 			)
+
+			if len(args) > 3 {
+				skipFile = args[3]
+			}
 
 			start, err := time.Parse("2006-01-02", startStr)
 			if err != nil {
+				log.Errorln(err)
 				panic(err)
 			}
 
 			stop, err := time.Parse("2006-01-02", stopStr)
 			if err != nil {
+				log.Errorln(err)
 				panic(err)
 			}
 
 			connEU, err := connectEU()
 			if err != nil {
-				panic((err))
+				log.Errorln(err)
+				panic(err)
 			}
 
 			connCloud, err := connectCloud()
 			if err != nil {
-				panic((err))
+				log.Errorln(err)
+				panic(err)
 			}
 
 			ctx := context.Background()
@@ -182,6 +190,7 @@ func main() {
 
 			err = replayQueryHistory(ctx, connEU, connCloud, cluster, start, stop, skipFile)
 			if err != nil {
+				log.Errorln(err)
 				panic(err)
 			}
 		},

@@ -230,15 +230,21 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 	// start the csv writer
 	go csvWriter(results, &wg)
 
-	// load the skip queries
-	skipHashes, err := getSkipQueryHashes(skip_file, start, stop, fromConn)
-	if err != nil {
-		log.Fatal(err)
-	}
+	var skipHashQuery string
 
-	skipHashesStr := []string{}
-	for _, h := range skipHashes {
-		skipHashesStr = append(skipHashesStr, strconv.FormatUint(h, 10))
+	if skip_file != "" {
+		// load the skip queries
+		skipHashes, err := getSkipQueryHashes(skip_file, start, stop, fromConn)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		skipHashesStr := []string{}
+		for _, h := range skipHashes {
+			skipHashesStr = append(skipHashesStr, strconv.FormatUint(h, 10))
+		}
+
+		skipHashQuery = `and normalized_query_hash not in (` + strings.Join(skipHashesStr, `, `) + `)`
 	}
 
 	query := `
@@ -246,7 +252,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		from clusterAllReplicas({cluster:String}, system.query_log)
 		where type = 2 and is_initial_query = 1 and query_kind = 'Select'
 		and query_start_time >= {start:String} and query_start_time <= {stop:String}
-		and normalized_query_hash not in (` + strings.Join(skipHashesStr, `, `) + `)		
+		` + skipHashQuery + `		
 		group by query, query_start_time_microseconds, query_duration_ms, query_kind
 		order by query_start_time_microseconds asc
 		`

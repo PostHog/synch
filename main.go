@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"posthog/synch/backups"
 	"time"
 
 	"github.com/go-co-op/gocron"
-	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -19,20 +19,83 @@ var (
 )
 
 func init() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
-	}
 	viper.AutomaticEnv()
 }
 
 func main() {
 	cmd := &cobra.Command{
-		Use:   "ClickHouse tools",
-		Short: "A simple ClickHouse admin application",
+		Use:   "ClickHouse",
+		Short: "A simple ClickHouse admin CLI",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("This is a simple ClickHouse admin application")
 		},
 	}
+
+	tableCmd := &cobra.Command{
+		Use:   "tables",
+		Short: "simple table management commands (usually across clusters)",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("This is the tables management command")
+		},
+	}
+
+	tableCmd.AddCommand(&cobra.Command{
+		Use:   "compare",
+		Short: "subcommand to compare two tables from different clusters. Arguments are tableA and tableB",
+		Args:  cobra.MinimumNArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			var (
+				tableA = args[0]
+				tableB = args[1]
+			)
+
+			fmt.Printf("Comparing table %s with table %s\n", tableA, tableB)
+			backups.CompareTableDef(tableA, tableB)
+		},
+	})
+
+	cmd.AddCommand(tableCmd)
+
+	backupCmd := &cobra.Command{
+		Use:   "backups",
+		Short: "Backup and restore commands",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("This is the backups management command")
+		},
+	}
+
+	backupCmd.AddCommand(&cobra.Command{
+		Use:   "list_recent",
+		Short: "subcommand to list all backups",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 1 {
+				table := args[0]
+				backups.ListRecentBackup(table)
+				return
+			}
+
+			backups.ListRecentBackups()
+		},
+	})
+
+	backupCmd.AddCommand(&cobra.Command{
+		Use:   "restore_recent",
+		Short: "subcommand to restore all backups",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 1 {
+				table := args[0]
+				backups.RestoreRecentBackup(table)
+				return
+			}
+			backups.RestoreRecentBackups()
+		},
+	})
+
+	cmd.AddCommand(backupCmd)
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "moveto",
@@ -73,24 +136,6 @@ func main() {
 			ctx := context.Background()
 			testConection(ctx, connUS)
 			drainDisk(ctx, connUS, fromDisk, toDisk)
-		},
-	})
-
-	cmd.AddCommand(&cobra.Command{
-		Use:   "dump-schema",
-		Short: "dump schema to file just include <database> as argument",
-		Args:  cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			var (
-				database = args[0]
-			)
-			connUS, err := connectUS()
-			if err != nil {
-				panic(err)
-			}
-			ctx := context.Background()
-			testConection(ctx, connUS)
-			dumpSchema(ctx, connUS, database)
 		},
 	})
 
@@ -196,6 +241,5 @@ func main() {
 		},
 	})
 
-	// LETS GOOOOO
 	cmd.Execute()
 }

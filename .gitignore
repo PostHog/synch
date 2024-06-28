@@ -27,3 +27,4 @@ output.csv.gz
 duck.db
 duckdb.sql
 .idea/
+test.sql

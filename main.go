@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/go-co-op/gocron"
@@ -78,37 +79,36 @@ func main() {
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "dump-schema",
-		Short: "dump schema to file just include <database> as argument",
-		Args:  cobra.MinimumNArgs(1),
+		Short: "dump schema to file <clickhouse_url> <file> <database> as arguments",
+		Args:  cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			var (
-				database = args[0]
+				clickhouseUrl = &args[0]
+				file          = &args[1]
+				specifiedDB   = &args[2]
 			)
-			connUS, err := connectUS()
+			conn, err := NewCHConn(clickhouseUrl)
 			if err != nil {
-				panic(err)
+				fmt.Printf("Error connecting to the database: %v\n", err)
+				os.Exit(1)
 			}
-			ctx := context.Background()
-			testConection(ctx, connUS)
-			dumpSchema(ctx, connUS, database)
-		},
-	})
+			defer conn.Close()
 
-	cmd.AddCommand(&cobra.Command{
-		Use:   "dump-schema",
-		Short: "dump schema to file just include <database> as argument",
-		Args:  cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			var (
-				database = args[0]
-			)
-			connUS, err := connectUS()
-			if err != nil {
-				panic(err)
+			opts := Options{
+				DB:          conn,
+				Path:        *file,
+				SpecifiedDB: *specifiedDB,
 			}
-			ctx := context.Background()
-			testConection(ctx, connUS)
-			dumpSchema(ctx, connUS, database)
+
+			err = Write(&opts)
+			if err != nil {
+				fmt.Printf("Error writing schema: %v\n", err)
+				os.Exit(1)
+			}
+
+			if len(opts.Path) > 0 {
+				fmt.Printf("Schema successfully saved to %s\n", *file)
+			}
 		},
 	})
 

@@ -90,7 +90,8 @@ func main() {
 				specifiedDB   = &args[2]
 			)
 
-			cmd.Flags().BoolVar(&noKafkas, "no-kafka", false, "Don't dump Kafka tables and materialized views")
+			cmd.Flags().BoolVar(&noKafkas, "no-kafka", false, "Don't dump Kafka tables")
+			cmd.Flags().BoolVar(&noMatViews, "no-mat-views", false, "Don't dump materialized views")
 
 			conn, err := NewCHConn(clickhouseUrl)
 			if err != nil {

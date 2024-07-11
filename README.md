@@ -19,11 +19,16 @@ git clone https://github.com/posthog/synch.git
 # Navigate to the synch directory
 cd synch
 
-# Build the project (Go must be installed)
-go build -o synch
+# Build the project for AMD64
+GOARCH=AMD64 GOOS=linux go build -o synch
 
-# Optionally, move the binary to a directory in your PATH
-mv synch /usr/local/bin/
+# ALTERNATIVELY Build the project for ARM64
+GOARCH=ARM64 GOOS=linux go build -o synch
+
+
+# SCP it to wherever you are going to use it
+scp synch ch.instance.dev:
+
 ```
 
 ## Usage
@@ -43,7 +48,10 @@ Here's a quick rundown of the commands available:
 ./synch drain-disk <from_disk> <to_disk>
 
 # Dump database schema to file
-./synch dump-schema <database>
+./synch dump-schema <clickhouse_url> <file> <database>
+
+# Dump database schema to file _without_ kafka or materialized view tables
+./synch dump-schema --no-kafkas --no-mat-views <clickhouse_url> <file> <database>
 
 # Synchronize a table across clusters
 ./synch synctable <table_name>

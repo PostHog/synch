@@ -77,21 +77,21 @@ func main() {
 		},
 	})
 
-	cmd.AddCommand(&cobra.Command{
+	var (
+		noKafkas   = false
+		noMatViews = false
+	)
+
+	dumpSchemaCmd := &cobra.Command{
 		Use:   "dump-schema",
 		Short: "dump schema to file <clickhouse_url> <file> <database> as arguments",
 		Args:  cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			var (
-				noKafkas      = false
-				noMatViews    = false
 				clickhouseUrl = &args[0]
 				file          = &args[1]
 				specifiedDB   = &args[2]
 			)
-
-			cmd.Flags().BoolVar(&noKafkas, "no-kafka", false, "Don't dump Kafka tables")
-			cmd.Flags().BoolVar(&noMatViews, "no-mat-views", false, "Don't dump materialized views")
 
 			conn, err := NewCHConn(clickhouseUrl)
 			if err != nil {
@@ -118,7 +118,11 @@ func main() {
 				fmt.Printf("Schema successfully saved to %s\n", *file)
 			}
 		},
-	})
+	}
+
+	dumpSchemaCmd.Flags().BoolVar(&noKafkas, "no-kafkas", false, "Don't dump Kafka tables")
+	dumpSchemaCmd.Flags().BoolVar(&noMatViews, "no-mat-views", false, "Don't dump materialized views")
+	cmd.AddCommand(dumpSchemaCmd)
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "synctable",

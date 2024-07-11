@@ -83,10 +83,15 @@ func main() {
 		Args:  cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			var (
+				noKafkas      = false
+				noMatViews    = false
 				clickhouseUrl = &args[0]
 				file          = &args[1]
 				specifiedDB   = &args[2]
 			)
+
+			cmd.Flags().BoolVar(&noKafkas, "no-kafka", false, "Don't dump Kafka tables and materialized views")
+
 			conn, err := NewCHConn(clickhouseUrl)
 			if err != nil {
 				fmt.Printf("Error connecting to the database: %v\n", err)
@@ -98,6 +103,8 @@ func main() {
 				DB:          conn,
 				Path:        *file,
 				SpecifiedDB: *specifiedDB,
+				NoKafkas:    noKafkas,
+				NoMatViews:  noMatViews,
 			}
 
 			err = Write(&opts)

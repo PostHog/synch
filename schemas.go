@@ -10,6 +10,8 @@ type Options struct {
 	DB          *sql.DB
 	Path        string
 	SpecifiedDB string
+	NoKafkas    bool
+	NoMatViews  bool
 }
 
 var (
@@ -27,6 +29,14 @@ var (
 func Write(opts *Options) error {
 	var fd *os.File
 	var err error
+	if opts.NoKafkas {
+		tableEngines = removeElement(tableEngines, "Kafka")
+	}
+
+	if opts.NoMatViews {
+		tableEngines = removeElement(tableEngines, "MaterializedView")
+	}
+
 	if len(opts.Path) > 0 {
 		fd, err = os.OpenFile(opts.Path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {

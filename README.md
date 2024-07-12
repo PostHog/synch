@@ -53,6 +53,8 @@ Here's a quick rundown of the commands available:
 # Dump database schema to file _without_ kafka or materialized view tables
 ./synch dump-schema --no-kafkas --no-mat-views <clickhouse_url> <file> <database>
 
+# <clickhouse_url> here looks like `"clickhouse://user:password@host:port"`
+
 # Synchronize a table across clusters
 ./synch synctable <table_name>
 

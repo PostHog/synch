@@ -20,10 +20,10 @@ git clone https://github.com/posthog/synch.git
 cd synch
 
 # Build the project for AMD64
-GOARCH=AMD64 GOOS=linux go build -o synch
+GOARCH=amd64 GOOS=linux go build -o synch
 
 # ALTERNATIVELY Build the project for ARM64
-GOARCH=ARM64 GOOS=linux go build -o synch
+GOARCH=arm64 GOOS=linux go build -o synch
 
 
 # SCP it to wherever you are going to use it

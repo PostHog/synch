@@ -92,7 +92,7 @@ func Write(opts *Options) error {
 			if err != nil {
 				return err
 			}
-			_, err = fd.Write([]byte(tableCreateStmt + "\n\n"))
+			_, err = fd.Write([]byte(tableCreateStmt + ";\n\n"))
 			if err != nil {
 				return fmt.Errorf("writing table '%s' create statement: %v", tableName, err)
 			}

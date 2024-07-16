@@ -78,8 +78,10 @@ func main() {
 	})
 
 	var (
-		noKafkas   = false
-		noMatViews = false
+		noKafkas     = false
+		noMatViews   = false
+		onlyKafkas   = false
+		onlyMatViews = false
 	)
 
 	dumpSchemaCmd := &cobra.Command{
@@ -101,11 +103,13 @@ func main() {
 			defer conn.Close()
 
 			opts := Options{
-				DB:          conn,
-				Path:        *file,
-				SpecifiedDB: *specifiedDB,
-				NoKafkas:    noKafkas,
-				NoMatViews:  noMatViews,
+				DB:           conn,
+				Path:         *file,
+				SpecifiedDB:  *specifiedDB,
+				NoKafkas:     noKafkas,
+				NoMatViews:   noMatViews,
+				OnlyKafkas:   onlyKafkas,
+				OnlyMatViews: onlyMatViews,
 			}
 
 			err = Write(&opts)
@@ -122,6 +126,8 @@ func main() {
 
 	dumpSchemaCmd.Flags().BoolVar(&noKafkas, "no-kafkas", false, "Don't dump Kafka tables")
 	dumpSchemaCmd.Flags().BoolVar(&noMatViews, "no-mat-views", false, "Don't dump materialized views")
+	dumpSchemaCmd.Flags().BoolVar(&noKafkas, "only-kafkas", false, "Dump only Kafka tables")
+	dumpSchemaCmd.Flags().BoolVar(&noMatViews, "only-mat-views", false, "Dump only materialized views")
 	cmd.AddCommand(dumpSchemaCmd)
 
 	cmd.AddCommand(&cobra.Command{

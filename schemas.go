@@ -58,7 +58,12 @@ func Compare(opts *Options) error {
 
 		for _, tableName := range tables {
 			if !includes(tables2, tableName) {
-				fmt.Printf("Table '%s.%s' is missing in the destination\n", dbName, tableName)
+				fmt.Printf("-- Table '%s.%s' is missing in the destination\n", dbName, tableName)
+				tableCreateStmt, err := fetchTableCreateStmt(opts.DB, dbName, tableName)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("%s;\n\n", tableCreateStmt)
 			}
 		}
 	}

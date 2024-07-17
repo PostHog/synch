@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Options struct {
@@ -69,7 +71,8 @@ func Compare(opts *Options) error {
 					if opts.Apply {
 						_, err = opts.DB2.Exec(tableCreateStmt)
 						if err != nil {
-							return fmt.Errorf("applying table '%s.%s' create statement: %v", dbName, tableName, err)
+							log.Errorf("applying table '%s.%s' create statement: %v", dbName, tableName, err)
+							continue
 						}
 						fmt.Printf("Applied table '%s.%s' to second ClickHouse instance\n", dbName, tableName)
 					} else {

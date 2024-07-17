@@ -7,6 +7,7 @@ import (
 )
 
 type Options struct {
+
 	DB             *sql.DB
 	DB2            *sql.DB
 	Path           string
@@ -83,6 +84,18 @@ func Write(opts *Options) error {
 
 	if opts.NoMatViews {
 		tableEngines = removeElement(tableEngines, "MaterializedView")
+	}
+
+	if opts.OnlyKafkas && opts.OnlyMatViews {
+		return fmt.Errorf("can't specify both --only-kafkas and --only-mat-views")
+	}
+
+	if opts.OnlyKafkas {
+		tableEngines = []string{"Kafka"}
+	}
+
+	if opts.OnlyMatViews {
+		tableEngines = []string{"MaterializedView"}
 	}
 
 	if len(opts.Path) > 0 {

@@ -7,14 +7,15 @@ import (
 )
 
 type Options struct {
-	DB           *sql.DB
-	DB2          *sql.DB
-	Path         string
-	SpecifiedDB  string
-	NoKafkas     bool
-	NoMatViews   bool
-	OnlyKafkas   bool
-	OnlyMatViews bool
+	DB             *sql.DB
+	DB2            *sql.DB
+	Path           string
+	SpecifiedDB    string
+	TableNamesOnly bool
+	NoKafkas       bool
+	NoMatViews     bool
+	OnlyKafkas     bool
+	OnlyMatViews   bool
 }
 
 var (
@@ -59,11 +60,13 @@ func Compare(opts *Options) error {
 		for _, tableName := range tables {
 			if !includes(tables2, tableName) {
 				fmt.Printf("-- Table '%s.%s' is missing in the destination\n", dbName, tableName)
-				tableCreateStmt, err := fetchTableCreateStmt(opts.DB, dbName, tableName)
-				if err != nil {
-					return err
+				if !opts.TableNamesOnly {
+					tableCreateStmt, err := fetchTableCreateStmt(opts.DB, dbName, tableName)
+					if err != nil {
+						return err
+					}
+					fmt.Printf("%s;\n\n", tableCreateStmt)
 				}
-				fmt.Printf("%s;\n\n", tableCreateStmt)
 			}
 		}
 	}

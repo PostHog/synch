@@ -124,7 +124,11 @@ func main() {
 	dumpSchemaCmd.Flags().BoolVar(&noMatViews, "no-mat-views", false, "Don't dump materialized views")
 	cmd.AddCommand(dumpSchemaCmd)
 
-	cmd.AddCommand(&cobra.Command{
+	var (
+		tableNamesOnly = false
+	)
+
+	compareSchemaCmd := &cobra.Command{
 		Use:   "compare-schema",
 		Short: "compare schemas from <clickhouse_url> to <clickhouse_url> <database> ",
 		Args:  cobra.MinimumNArgs(3),
@@ -150,9 +154,10 @@ func main() {
 			defer conn2.Close()
 
 			opts := Options{
-				DB:          conn,
-				DB2:         conn2,
-				SpecifiedDB: *specifiedDB,
+				DB:             conn,
+				DB2:            conn2,
+				SpecifiedDB:    *specifiedDB,
+				TableNamesOnly: tableNamesOnly,
 			}
 
 			err = Compare(&opts)
@@ -161,7 +166,10 @@ func main() {
 				os.Exit(1)
 			}
 		},
-	})
+	}
+
+	compareSchemaCmd.Flags().BoolVar(&tableNamesOnly, "table-names-only", false, "Only return table names, not full schema")
+	cmd.AddCommand(compareSchemaCmd)
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "synctable",

@@ -7,7 +7,6 @@ import (
 )
 
 type Options struct {
-
 	DB             *sql.DB
 	DB2            *sql.DB
 	Path           string
@@ -174,7 +173,7 @@ func getDatabases(db *sql.DB) ([]string, error) {
 
 func getTables(db *sql.DB, dbName string) ([]string, error) {
 	var tables []string
-	rows, err := db.Query("SELECT name FROM system.tables WHERE database = ?;", dbName)
+	rows, err := db.Query("SELECT name FROM system.tables WHERE name not like '.inner_id.%' AND database = ?;", dbName)
 	if err != nil {
 		return []string{}, fmt.Errorf("getting tables for '%s': %v", dbName, err)
 	}
@@ -197,7 +196,7 @@ func getTables(db *sql.DB, dbName string) ([]string, error) {
 
 func getTablesByEngine(db *sql.DB, dbName string, engineFilter string) ([]string, error) {
 	var tables []string
-	rows, err := db.Query("SELECT name FROM system.tables WHERE database = ? and engine like ?;", dbName, engineFilter)
+	rows, err := db.Query("SELECT name FROM system.tables WHERE name not like '.inner_id.%' AND database = ? AND engine like ?;", dbName, engineFilter)
 	if err != nil {
 		return []string{}, fmt.Errorf("getting tables for '%s': %v", dbName, err)
 	}

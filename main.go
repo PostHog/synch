@@ -132,6 +132,7 @@ func main() {
 
 	var (
 		tableNamesOnly = false
+		apply          = false
 	)
 
 	compareSchemaCmd := &cobra.Command{
@@ -164,6 +165,7 @@ func main() {
 				DB2:            conn2,
 				SpecifiedDB:    *specifiedDB,
 				TableNamesOnly: tableNamesOnly,
+				Apply:          apply,
 			}
 
 			err = Compare(&opts)
@@ -175,6 +177,7 @@ func main() {
 	}
 
 	compareSchemaCmd.Flags().BoolVar(&tableNamesOnly, "table-names-only", false, "Only return table names, not full schema")
+	compareSchemaCmd.Flags().BoolVar(&apply, "apply", false, "Apply changes to the second ClickHouse instance")
 	cmd.AddCommand(compareSchemaCmd)
 
 	cmd.AddCommand(&cobra.Command{

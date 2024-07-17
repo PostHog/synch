@@ -16,6 +16,7 @@ type Options struct {
 	NoMatViews     bool
 	OnlyKafkas     bool
 	OnlyMatViews   bool
+	Apply          bool
 }
 
 var (
@@ -65,7 +66,15 @@ func Compare(opts *Options) error {
 					if err != nil {
 						return err
 					}
-					fmt.Printf("%s;\n\n", tableCreateStmt)
+					if opts.Apply {
+						_, err = opts.DB2.Exec(tableCreateStmt)
+						if err != nil {
+							return fmt.Errorf("applying table '%s.%s' create statement: %v", dbName, tableName, err)
+						}
+						fmt.Printf("Applied table '%s.%s' to second ClickHouse instance\n", dbName, tableName)
+					} else {
+						fmt.Printf("%s;\n\n", tableCreateStmt)
+					}
 				}
 			}
 		}

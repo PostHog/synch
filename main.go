@@ -130,6 +130,53 @@ func main() {
 	dumpSchemaCmd.Flags().BoolVar(&noMatViews, "only-mat-views", false, "Dump only materialized views")
 	cmd.AddCommand(dumpSchemaCmd)
 
+	var (
+		tableNamesOnly = false
+	)
+
+	compareSchemaCmd := &cobra.Command{
+		Use:   "compare-schema",
+		Short: "compare schemas from <clickhouse_url> to <clickhouse_url> <database> ",
+		Args:  cobra.MinimumNArgs(3),
+		Run: func(cmd *cobra.Command, args []string) {
+			var (
+				clickhouseUrl  = &args[0]
+				clickhouse2Url = &args[1]
+				specifiedDB    = &args[2]
+			)
+
+			conn, err := NewCHConn(clickhouseUrl)
+			if err != nil {
+				fmt.Printf("Error connecting to the database: %v\n", err)
+				os.Exit(1)
+			}
+			defer conn.Close()
+
+			conn2, err := NewCHConn(clickhouse2Url)
+			if err != nil {
+				fmt.Printf("Error connecting to the database: %v\n", err)
+				os.Exit(1)
+			}
+			defer conn2.Close()
+
+			opts := Options{
+				DB:             conn,
+				DB2:            conn2,
+				SpecifiedDB:    *specifiedDB,
+				TableNamesOnly: tableNamesOnly,
+			}
+
+			err = Compare(&opts)
+			if err != nil {
+				fmt.Printf("Error comparing schemas: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	compareSchemaCmd.Flags().BoolVar(&tableNamesOnly, "table-names-only", false, "Only return table names, not full schema")
+	cmd.AddCommand(compareSchemaCmd)
+
 	cmd.AddCommand(&cobra.Command{
 		Use:   "synctable",
 		Short: "subcommand to sync a table across clusters",

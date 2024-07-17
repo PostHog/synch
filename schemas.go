@@ -7,13 +7,16 @@ import (
 )
 
 type Options struct {
-	DB           *sql.DB
-	Path         string
-	SpecifiedDB  string
-	NoKafkas     bool
-	NoMatViews   bool
-	OnlyKafkas   bool
-	OnlyMatViews bool
+
+	DB             *sql.DB
+	DB2            *sql.DB
+	Path           string
+	SpecifiedDB    string
+	TableNamesOnly bool
+	NoKafkas       bool
+	NoMatViews     bool
+	OnlyKafkas     bool
+	OnlyMatViews   bool
 }
 
 var (
@@ -27,6 +30,50 @@ var (
 		"View",
 	}
 )
+
+func Compare(opts *Options) error {
+	var err error
+
+	databases, err := validateDatabase(opts)
+	if err != nil {
+		return err
+	}
+
+	for _, dbName := range databases {
+		if dbName == "system" {
+			continue
+		}
+
+		// Get source tables
+		var tables []string
+		tables, err := getTables(opts.DB, dbName)
+		if err != nil {
+			return err
+		}
+
+		// Get DB2 tables
+		var tables2 []string
+		tables2, err = getTables(opts.DB2, dbName)
+		if err != nil {
+			return err
+		}
+
+		for _, tableName := range tables {
+			if !includes(tables2, tableName) {
+				fmt.Printf("-- Table '%s.%s' is missing in the destination\n", dbName, tableName)
+				if !opts.TableNamesOnly {
+					tableCreateStmt, err := fetchTableCreateStmt(opts.DB, dbName, tableName)
+					if err != nil {
+						return err
+					}
+					fmt.Printf("%s;\n\n", tableCreateStmt)
+				}
+			}
+		}
+	}
+
+	return nil
+}
 
 func Write(opts *Options) error {
 	var fd *os.File
@@ -61,23 +108,9 @@ func Write(opts *Options) error {
 		fd = os.Stdout
 	}
 
-	allDatabases, err := getDatabases(opts.DB)
+	databases, err := validateDatabase(opts)
 	if err != nil {
-		return fmt.Errorf("getting databases: %v", err)
-	}
-
-	var databases []string
-	switch opts.SpecifiedDB {
-	case "":
-		databases = allDatabases
-	case "system":
-		return fmt.Errorf("'%s' is a special internal ClickHouse database and can't be specified", opts.SpecifiedDB)
-	default:
-		if includes(allDatabases, opts.SpecifiedDB) {
-			databases = []string{opts.SpecifiedDB}
-		} else {
-			return fmt.Errorf("specified database '%s' doesnt exist", opts.SpecifiedDB)
-		}
+		return err
 	}
 
 	for _, dbName := range databases {
@@ -95,7 +128,7 @@ func Write(opts *Options) error {
 
 		var tables []string
 		for _, engine := range tableEngines {
-			newTables, err := getTables(opts.DB, dbName, engine)
+			newTables, err := getTablesByEngine(opts.DB, dbName, engine)
 			if err != nil {
 				return err
 			}
@@ -139,7 +172,30 @@ func getDatabases(db *sql.DB) ([]string, error) {
 	return databases, nil
 }
 
-func getTables(db *sql.DB, dbName string, engineFilter string) ([]string, error) {
+func getTables(db *sql.DB, dbName string) ([]string, error) {
+	var tables []string
+	rows, err := db.Query("SELECT name FROM system.tables WHERE database = ?;", dbName)
+	if err != nil {
+		return []string{}, fmt.Errorf("getting tables for '%s': %v", dbName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return []string{}, fmt.Errorf("getting tables for '%s': %v", dbName, err)
+		}
+		tables = append(tables, name)
+	}
+
+	if rows.Err(); err != nil {
+		return []string{}, fmt.Errorf("getting tables for '%s': %v", dbName, err)
+	}
+
+	return tables, nil
+}
+
+func getTablesByEngine(db *sql.DB, dbName string, engineFilter string) ([]string, error) {
 	var tables []string
 	rows, err := db.Query("SELECT name FROM system.tables WHERE database = ? and engine like ?;", dbName, engineFilter)
 	if err != nil {
@@ -194,4 +250,43 @@ func includes(strs []string, str string) bool {
 	}
 
 	return false
+}
+
+func validateDatabase(opts *Options) ([]string, error) {
+	allDatabases, err := getDatabases(opts.DB)
+	if err != nil {
+		return nil, fmt.Errorf("getting databases: %v", err)
+	}
+
+	var databases []string
+	switch opts.SpecifiedDB {
+	case "":
+		databases = allDatabases
+	case "system":
+		return nil, fmt.Errorf("'%s' is a special internal ClickHouse database and can't be specified", opts.SpecifiedDB)
+	default:
+		if includes(allDatabases, opts.SpecifiedDB) {
+			databases = []string{opts.SpecifiedDB}
+		} else {
+			return nil, fmt.Errorf("specified database '%s' doesnt exist", opts.SpecifiedDB)
+		}
+	}
+
+	if opts.DB2 != nil {
+		allDatabases2, err := getDatabases(opts.DB2)
+		if err != nil {
+			return nil, fmt.Errorf("getting databases: %v", err)
+		}
+
+		if opts.SpecifiedDB != "" {
+			if includes(allDatabases2, opts.SpecifiedDB) {
+				databases = []string{opts.SpecifiedDB}
+			} else {
+				return nil, fmt.Errorf("specified database '%s' doesnt exist", opts.SpecifiedDB)
+			}
+		} else {
+			databases = allDatabases2
+		}
+	}
+	return databases, nil
 }

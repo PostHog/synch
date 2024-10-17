@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -132,7 +133,7 @@ func Write(opts *Options) error {
 		if err != nil {
 			return err
 		}
-		_, err = fd.Write([]byte(dbCreateStmt + "\n\n"))
+		_, err = fd.Write([]byte(dbCreateStmt + ";\n\n"))
 		if err != nil {
 			return fmt.Errorf("writing database '%s' create statement: %v", dbName, err)
 		}
@@ -239,7 +240,7 @@ func dbCreateStmt(db *sql.DB, dbName string) (string, error) {
 		return "", fmt.Errorf("getting database %s create statement: %v", dbName, err)
 	}
 
-	return createStmt, nil
+	return strings.Replace(createStmt, "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1), nil
 }
 
 func fetchTableCreateStmt(db *sql.DB, dbName string, tableName string) (string, error) {

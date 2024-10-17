@@ -240,7 +240,7 @@ func dbCreateStmt(db *sql.DB, dbName string) (string, error) {
 		return "", fmt.Errorf("getting database %s create statement: %v", dbName, err)
 	}
 
-	return strings.Replace(createStmt, "CREATE", "CREATE IF NOT EXISTS", 1), nil
+	return strings.Replace(createStmt, "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1), nil
 }
 
 func fetchTableCreateStmt(db *sql.DB, dbName string, tableName string) (string, error) {

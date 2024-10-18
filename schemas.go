@@ -177,7 +177,7 @@ func getDatabases(db *sql.DB) ([]string, error) {
 		databases = append(databases, name)
 	}
 
-	if rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return []string{}, fmt.Errorf("getting databases: %v", err)
 	}
 
@@ -200,7 +200,7 @@ func getTables(db *sql.DB, dbName string) ([]string, error) {
 		tables = append(tables, name)
 	}
 
-	if rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return []string{}, fmt.Errorf("getting tables for '%s': %v", dbName, err)
 	}
 
@@ -225,7 +225,7 @@ func getTablesByEngine(db *sql.DB, dbName string, engineFilter string) ([]string
 		}
 	}
 
-	if rows.Err(); err != nil {
+	if err =rows.Err(); err != nil {
 		return []string{}, fmt.Errorf("getting tables for '%s': %v", dbName, err)
 	}
 

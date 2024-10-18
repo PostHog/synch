@@ -126,8 +126,8 @@ func main() {
 
 	dumpSchemaCmd.Flags().BoolVar(&noKafkas, "no-kafkas", false, "Don't dump Kafka tables")
 	dumpSchemaCmd.Flags().BoolVar(&noMatViews, "no-mat-views", false, "Don't dump materialized views")
-	dumpSchemaCmd.Flags().BoolVar(&noKafkas, "only-kafkas", false, "Dump only Kafka tables")
-	dumpSchemaCmd.Flags().BoolVar(&noMatViews, "only-mat-views", false, "Dump only materialized views")
+	dumpSchemaCmd.Flags().BoolVar(&onlyKafkas, "only-kafkas", false, "Dump only Kafka tables")
+	dumpSchemaCmd.Flags().BoolVar(&onlyMatViews, "only-mat-views", false, "Dump only materialized views")
 	cmd.AddCommand(dumpSchemaCmd)
 
 	var (

@@ -53,6 +53,9 @@ Here's a quick rundown of the commands available:
 # Dump database schema to file _without_ kafka or materialized view tables
 ./synch dump-schema --no-kafkas --no-mat-views <clickhouse_url> <file> <database>
 
+# Dump database schema to file _with_ IF NOT EXISTS in CREATE TABLE statements
+./synch dump-schema --if-not-exists <clickhouse_url> <file> <database>
+
 # <clickhouse_url> here looks like `"clickhouse://user:password@host:port"`
 
 # Synchronize a table across clusters

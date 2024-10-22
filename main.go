@@ -82,6 +82,7 @@ func main() {
 		noMatViews   = false
 		onlyKafkas   = false
 		onlyMatViews = false
+		ifNotExists  = false
 	)
 
 	dumpSchemaCmd := &cobra.Command{
@@ -110,6 +111,7 @@ func main() {
 				NoMatViews:   noMatViews,
 				OnlyKafkas:   onlyKafkas,
 				OnlyMatViews: onlyMatViews,
+				IfNotExists:  ifNotExists,
 			}
 
 			err = Write(&opts)
@@ -128,6 +130,7 @@ func main() {
 	dumpSchemaCmd.Flags().BoolVar(&noMatViews, "no-mat-views", false, "Don't dump materialized views")
 	dumpSchemaCmd.Flags().BoolVar(&onlyKafkas, "only-kafkas", false, "Dump only Kafka tables")
 	dumpSchemaCmd.Flags().BoolVar(&onlyMatViews, "only-mat-views", false, "Dump only materialized views")
+	dumpSchemaCmd.Flags().BoolVar(&ifNotExists, "if-not-exists", false, "Add IF NOT EXISTS to CREATE TABLE statements")
 	cmd.AddCommand(dumpSchemaCmd)
 
 	var (

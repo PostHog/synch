@@ -20,6 +20,7 @@ type Options struct {
 	OnlyKafkas     bool
 	OnlyMatViews   bool
 	Apply          bool
+	IfNotExists    bool
 }
 
 var (
@@ -65,7 +66,7 @@ func Compare(opts *Options) error {
 			if !includes(tables2, tableName) {
 				fmt.Printf("-- Table '%s.%s' is missing in the destination\n", dbName, tableName)
 				if !opts.TableNamesOnly {
-					tableCreateStmt, err := fetchTableCreateStmt(opts.DB, dbName, tableName)
+					tableCreateStmt, err := fetchTableCreateStmt(opts.DB, dbName, tableName, opts.IfNotExists)
 					if err != nil {
 						return err
 					}
@@ -147,7 +148,7 @@ func Write(opts *Options) error {
 			tables = append(tables, newTables...)
 		}
 		for _, tableName := range tables {
-			tableCreateStmt, err := fetchTableCreateStmt(opts.DB, dbName, tableName)
+			tableCreateStmt, err := fetchTableCreateStmt(opts.DB, dbName, tableName, opts.IfNotExists)
 			if err != nil {
 				return err
 			}
@@ -243,12 +244,19 @@ func dbCreateStmt(db *sql.DB, dbName string) (string, error) {
 	return strings.Replace(createStmt, "CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS", 1), nil
 }
 
-func fetchTableCreateStmt(db *sql.DB, dbName string, tableName string) (string, error) {
+func fetchTableCreateStmt(db *sql.DB, dbName string, tableName string, ifNotExists bool) (string, error) {
 	var createStmt string
 	queryStmt := fmt.Sprintf("SHOW CREATE TABLE `%s`.`%s` FORMAT PrettySpaceNoEscapes;", dbName, tableName)
 	err := db.QueryRow(queryStmt).Scan(&createStmt)
 	if err != nil {
 		return "", fmt.Errorf("getting table '%s.%s' statement: %v", dbName, tableName, err)
+	}
+
+	if ifNotExists {
+		createStmt = strings.Replace(createStmt, "CREATE TABLE", "CREATE TABLE IF NOT EXISTS", 1)
+		createStmt = strings.Replace(createStmt, "CREATE VIEW", "CREATE VIEW IF NOT EXISTS", 1)
+		createStmt = strings.Replace(createStmt, "CREATE DICTIONARY", "CREATE DICTIONARY IF NOT EXISTS", 1)
+		createStmt = strings.Replace(createStmt, "CREATE MATERIALIZED VIEW", "CREATE MATERIALIZED VIEW IF NOT EXISTS", 1)
 	}
 
 	return createStmt, nil

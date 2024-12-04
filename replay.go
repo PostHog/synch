@@ -185,6 +185,21 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
+	if err := writer.Write(
+		[]string{
+			"number",
+			"original_start_time",
+			"original_duration_ms",
+			"replay_start_time",
+			"replay_duration_ms",
+			"delta_ms",
+			"query_errored",
+			"error",
+			"query",
+		}); err != nil {
+		log.Fatalln("error writing record to csv:", err)
+		wg.Done()
+	}
 
 	// Write all the records
 	for r := range results {

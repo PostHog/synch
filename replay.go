@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/csv"
 	"io"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -100,7 +100,7 @@ group by normalized_query_hash
 	return query, nil
 }
 
-func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver.Conn) ([]uint64, error) {
+func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn *sql.DB) ([]uint64, error) {
 	var skipQueryHashes []uint64
 
 	skipQueries, err := loadSkipQueries(querySkipFile)
@@ -115,7 +115,7 @@ func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver
 		return nil, err
 	}
 
-	rows, err := conn.Query(
+	rows, err := conn.QueryContext(
 		context.Background(),
 		query,
 		clickhouse.Named("start", start.Format("2006-01-02")),
@@ -139,14 +139,9 @@ func getSkipQueryHashes(querySkipFile string, start, stop time.Time, conn driver
 	return skipQueryHashes, nil
 }
 
-func worker(id int, queries <-chan Query, results chan<- QueryResult) {
+func worker(id int, toConn *sql.DB, queries <-chan Query, results chan<- QueryResult) {
 	log.Info("Starting worker: ", id)
-	// TODO: fix this to be more dynamic and not just connect to cloud
-	conn, err := connectCloud()
 	ctx := context.Background()
-	if err != nil {
-		panic(err)
-	}
 	for q := range queries {
 		start := time.Now()
 		queryErrored := false
@@ -155,7 +150,7 @@ func worker(id int, queries <-chan Query, results chan<- QueryResult) {
 		// this is not allowed on clickhouse cloud
 		q.query = strings.ReplaceAll(q.query, ", allow_experimental_object_type=1", " ")
 		log.Println("worker", id, "started  job", q)
-		err := conn.Exec(ctx, q.query)
+		_, err := toConn.ExecContext(ctx, q.query)
 		if err != nil {
 			log.Warn(err)
 			queryErrored = true
@@ -219,7 +214,7 @@ func csvWriter(results <-chan QueryResult, wg *sync.WaitGroup) {
 
 }
 
-func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, cluster string, start, stop time.Time, skip_file string) error {
+func replayQueryHistory(ctx context.Context, fromConn, toConn *sql.DB, cluster string, start, stop time.Time, skip_file string) error {
 	log.Info("Starting workers")
 	numWorkers := 1000
 
@@ -227,7 +222,7 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 	results := make(chan QueryResult)
 	var wg sync.WaitGroup
 	for w := 1; w <= numWorkers; w++ {
-		go worker(w, queries, results)
+		go worker(w, toConn, queries, results)
 	}
 
 	// start the csv writer
@@ -255,17 +250,17 @@ func replayQueryHistory(ctx context.Context, fromConn, toConn driver.Conn, clust
 		from clusterAllReplicas({cluster:String}, system.query_log)
 		where type = 2 and is_initial_query = 1 and query_kind = 'Select'
 		and query_start_time >= {start:String} and query_start_time <= {stop:String}
-		` + skipHashQuery + `		
+		` + skipHashQuery + `
 		group by query, query_start_time_microseconds, query_duration_ms, query_kind
 		order by query_start_time_microseconds asc
 		`
 
 	log.Infof("Replaying query history from %s to %s", start.Format("2006-01-02"), stop.Format("2006-01-02"))
-	rows, err := fromConn.Query(ctx,
+	rows, err := fromConn.QueryContext(ctx,
 		query,
 		clickhouse.Named("cluster", cluster),
-		clickhouse.Named("start", start.Format("2006-01-02")),
-		clickhouse.Named("stop", stop.Format("2006-01-02")))
+		clickhouse.Named("start", start.Format("2006-01-02 15:04:05")),
+		clickhouse.Named("stop", stop.Format("2006-01-02 15:04:05")))
 	if err != nil {
 		log.Fatal(query, err)
 	}

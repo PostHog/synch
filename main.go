@@ -205,10 +205,10 @@ func main() {
 
 			s := gocron.NewScheduler(time.UTC)
 			s.Every(1).Day().At("00:30").WaitForSchedule().Do(func() {
-				updateTables(ctx, connEU, connCloud)
+				updateTables(connEU, connCloud)
 			})
 
-			updateTables(ctx, connEU, connCloud)
+			updateTables(connEU, connCloud)
 
 			s.StartBlocking()
 		},
@@ -217,49 +217,49 @@ func main() {
 	cmd.AddCommand(&cobra.Command{
 		Use:   "replay",
 		Short: "Replay a portion of query history from one cluster onto another, for benchmarking. Arguments are cluster, start and stop dates.",
-		Args:  cobra.MinimumNArgs(3),
+		Args:  cobra.MinimumNArgs(5),
 		Run: func(cmd *cobra.Command, args []string) {
 
 			var (
-				cluster  = args[0]
-				startStr = args[1]
-				stopStr  = args[2]
-				skipFile string
+				cluster                  = args[0]
+				clusterAConnectionString = &args[1]
+				clusterBConnectionString = &args[2]
+				startStr                 = args[3]
+				stopStr                  = args[4]
+				skipFile                 string
 			)
 
-			if len(args) > 3 {
-				skipFile = args[3]
+			if len(args) > 5 {
+				skipFile = args[5]
 			}
 
-			start, err := time.Parse("2006-01-02", startStr)
+			start, err := time.Parse("2006-01-02 15:04:05", startStr)
 			if err != nil {
 				log.Errorln(err)
 				panic(err)
 			}
 
-			stop, err := time.Parse("2006-01-02", stopStr)
+			stop, err := time.Parse("2006-01-02 15:04:05", stopStr)
 			if err != nil {
 				log.Errorln(err)
 				panic(err)
 			}
 
-			connEU, err := connectEU()
+			connClusterA, err := NewCHConn(clusterAConnectionString)
 			if err != nil {
 				log.Errorln(err)
 				panic(err)
 			}
 
-			connCloud, err := connectCloud()
+			connClusterB, err := NewCHConn(clusterBConnectionString)
 			if err != nil {
 				log.Errorln(err)
 				panic(err)
 			}
 
 			ctx := context.Background()
-			testConection(ctx, connEU)
-			testConection(ctx, connCloud)
 
-			err = replayQueryHistory(ctx, connEU, connCloud, cluster, start, stop, skipFile)
+			err = replayQueryHistory(ctx, connClusterA, connClusterB, cluster, start, stop, skipFile)
 			if err != nil {
 				log.Errorln(err)
 				panic(err)

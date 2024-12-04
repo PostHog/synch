@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func updateTables(ctx context.Context, connEU, connCloud driver.Conn) {
+func updateTables(connEU, connCloud driver.Conn) {
 	for _, table := range tables {
 		if err := updateTable(context.Background(), connEU, connCloud, viper.GetString("CLICKHOUSE_EU_DATABASE"), table, false, true); err != nil {
 			panic(err)

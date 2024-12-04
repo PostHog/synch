@@ -176,7 +176,7 @@ func NewCHConn(url *string) (*sql.DB, error) {
 		return nil, fmt.Errorf("getting clickhouse connection: %v", err)
 	}
 
-	retry(3, time.Second, func() error {
+	err = retry(3, time.Second, func() error {
 		if _, err := db.Exec("SELECT 1"); err != nil {
 			return fmt.Errorf("trying to ping clickhouse: %s", err)
 		}

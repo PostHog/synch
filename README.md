@@ -62,7 +62,7 @@ Here's a quick rundown of the commands available:
 ./synch synctable <table_name>
 
 # Replay query history between clusters for benchmarking
-./synch replay <cluster> <start_date> <end_date>
+./synch replay <cluster> <from_clickhouse_url> <to_clickhouse_url> <start_date> <end_date>
 ```
 
 ## Configuration

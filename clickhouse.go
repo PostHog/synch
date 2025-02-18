@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -170,8 +171,23 @@ func connectUS() (driver.Conn, error) {
 	return conn, nil
 }
 
-func NewCHConn(url *string) (*sql.DB, error) {
-	db, err := sql.Open("clickhouse", *url)
+func NewCHConn(urlStr *string) (*sql.DB, error) {
+	// Parse the URL to add TLS parameters if needed
+	parsedURL, err := url.Parse(*urlStr)
+	if err != nil {
+		return nil, fmt.Errorf("parsing clickhouse URL: %v", err)
+	}
+
+	// If port is 9440, add secure=true and skip_verify=1 to the query parameters
+	if parsedURL.Port() == "9440" {
+		q := parsedURL.Query()
+		q.Set("secure", "true")
+		q.Set("skip_verify", "1")
+		parsedURL.RawQuery = q.Encode()
+		*urlStr = parsedURL.String()
+	}
+
+	db, err := sql.Open("clickhouse", *urlStr)
 	if err != nil {
 		return nil, fmt.Errorf("getting clickhouse connection: %v", err)
 	}

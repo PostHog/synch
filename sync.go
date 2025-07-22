@@ -35,7 +35,7 @@ func updateTable(ctx context.Context, connEU, connCloud driver.Conn, database, t
 		table,
 		viper.GetString("CLICKHOUSE_CLOUD_USERNAME"),
 		viper.GetString("CLICKHOUSE_CLOUD_PASSWORD"))
-	fmt.Printf("on EU CH inserting into table %s.%s\nInsert statement:\n%s\n", database, table, insertStatement)
+	fmt.Printf("on EU CH inserting into table %s.%s\n", database, table)
 	if !dryRun {
 		if err := connEU.Exec(ctx, insertStatement); err != nil {
 			return err

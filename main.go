@@ -78,11 +78,12 @@ func main() {
 	})
 
 	var (
-		noKafkas     = false
-		noMatViews   = false
-		onlyKafkas   = false
-		onlyMatViews = false
-		ifNotExists  = false
+		noKafkas      = false
+		noMatViews    = false
+		noDistributed = false
+		onlyKafkas    = false
+		onlyMatViews  = false
+		ifNotExists   = false
 	)
 
 	dumpSchemaCmd := &cobra.Command{
@@ -104,14 +105,15 @@ func main() {
 			defer conn.Close()
 
 			opts := Options{
-				DB:           conn,
-				Path:         *file,
-				SpecifiedDB:  *specifiedDB,
-				NoKafkas:     noKafkas,
-				NoMatViews:   noMatViews,
-				OnlyKafkas:   onlyKafkas,
-				OnlyMatViews: onlyMatViews,
-				IfNotExists:  ifNotExists,
+				DB:            conn,
+				Path:          *file,
+				SpecifiedDB:   *specifiedDB,
+				NoKafkas:      noKafkas,
+				NoMatViews:    noMatViews,
+				NoDistributed: noDistributed,
+				OnlyKafkas:    onlyKafkas,
+				OnlyMatViews:  onlyMatViews,
+				IfNotExists:   ifNotExists,
 			}
 
 			err = Write(&opts)
@@ -128,6 +130,7 @@ func main() {
 
 	dumpSchemaCmd.Flags().BoolVar(&noKafkas, "no-kafkas", false, "Don't dump Kafka tables")
 	dumpSchemaCmd.Flags().BoolVar(&noMatViews, "no-mat-views", false, "Don't dump materialized views")
+	dumpSchemaCmd.Flags().BoolVar(&noDistributed, "no-distributed", false, "Don't dump Distributed tables")
 	dumpSchemaCmd.Flags().BoolVar(&onlyKafkas, "only-kafkas", false, "Dump only Kafka tables")
 	dumpSchemaCmd.Flags().BoolVar(&onlyMatViews, "only-mat-views", false, "Dump only materialized views")
 	dumpSchemaCmd.Flags().BoolVar(&ifNotExists, "if-not-exists", false, "Add IF NOT EXISTS to CREATE TABLE statements")

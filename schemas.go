@@ -17,6 +17,7 @@ type Options struct {
 	TableNamesOnly bool
 	NoKafkas       bool
 	NoMatViews     bool
+	NoDistributed  bool
 	OnlyKafkas     bool
 	OnlyMatViews   bool
 	Apply          bool
@@ -97,6 +98,10 @@ func Write(opts *Options) error {
 
 	if opts.NoMatViews {
 		tableEngines = removeElement(tableEngines, "MaterializedView")
+	}
+
+	if opts.NoDistributed {
+		tableEngines = removeElement(tableEngines, "Distributed")
 	}
 
 	if opts.OnlyKafkas && opts.OnlyMatViews {

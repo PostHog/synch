@@ -60,8 +60,9 @@ Here's a quick rundown of the commands available:
 ./synch dump-schema --if-not-exists <clickhouse_url> <file> <database>
 
 # Dump database schema to file _with_ secret values intact
-# This is intended for very specific situations and should always be used with care
+# This is intended for very specific situations and should always be used with care.
 # Do NOT use this if you are not sure, and do NOT leave the resulting dump file behind when you are done!
+# See "--show-secrets prerequisites" below for required cluster-side configuration.
 ./synch dump-schema --show-secrets <clickhouse_url> <file> <database>
 
 # <clickhouse_url> here looks like `"clickhouse://user:password@host:port"`
@@ -72,6 +73,42 @@ Here's a quick rundown of the commands available:
 # Replay query history between clusters for benchmarking
 ./synch replay <cluster> <from_clickhouse_url> <to_clickhouse_url> <start_date> <end_date>
 ```
+
+### `--show-secrets` prerequisites
+
+For `--show-secrets` to actually replace `[HIDDEN]` with real values, the **ClickHouse cluster** must be configured to permit secret display. All of the following are required — if any is missing, the dump will still contain `[HIDDEN]` and the flag becomes a silent no-op:
+
+1. **Server config** — add the following to `config.xml`, or as an overlay file in `config.d/` (e.g. `/etc/clickhouse-server/config.d/display-secrets.xml`):
+
+    ```xml
+    <clickhouse>
+      <display_secrets_in_show_and_select>1</display_secrets_in_show_and_select>
+    </clickhouse>
+    ```
+
+    This setting is **not** changeable without restart. After updating the config, restart the ClickHouse server for it to take effect. You can confirm it is enabled with:
+
+    ```sql
+    SELECT value FROM system.server_settings WHERE name = 'display_secrets_in_show_and_select';
+    ```
+
+2. **User privilege** — the connecting user must hold the `displaySecretsInShowAndSelect` privilege.
+
+    Verify the connecting user holds it with:
+
+    ```sql
+    CHECK GRANT displaySecretsInShowAndSelect ON *.*;
+    ```
+
+    A return value of `1` means the privilege is held. If it returns `0`, grant it (the exact statement may vary by your access-control setup, but typically: `GRANT displaySecretsInShowAndSelect ON *.* TO <user>`).
+
+    If they do not, grant it with the following and re-run the check:
+
+    ```sql
+    GRANT displaySecretsInShowAndSelect ON *.* TO <user>;
+    ```
+
+**Operational warning**: dumps produced with `--show-secrets` contain plaintext credentials (passwords inside `ENGINE = ...` arguments and dictionary `SOURCE(...)` clauses). Do not commit the file, do not share it through insecure channels, and delete it as soon as it has served its purpose.
 
 ## Configuration
 

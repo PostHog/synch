@@ -22,6 +22,7 @@ type Options struct {
 	OnlyMatViews   bool
 	Apply          bool
 	IfNotExists    bool
+	ShowSecrets    bool
 }
 
 var (
@@ -92,6 +93,17 @@ func Compare(opts *Options) error {
 func Write(opts *Options) error {
 	var fd *os.File
 	var err error
+
+	if opts.ShowSecrets {
+		// Pin the pool to a single connection so the SET below applies to every
+		// subsequent SHOW CREATE query. Requires the connecting user to hold the
+		// displaySecretsInShowAndSelect privilege.
+		opts.DB.SetMaxOpenConns(1)
+		if _, err := opts.DB.Exec("SET format_display_secrets_in_show_and_select = 1"); err != nil {
+			return fmt.Errorf("enabling secret display: %v", err)
+		}
+	}
+
 	if opts.NoKafkas {
 		tableEngines = removeElement(tableEngines, "Kafka")
 	}
@@ -231,7 +243,7 @@ func getTablesByEngine(db *sql.DB, dbName string, engineFilter string) ([]string
 		}
 	}
 
-	if err =rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return []string{}, fmt.Errorf("getting tables for '%s': %v", dbName, err)
 	}
 

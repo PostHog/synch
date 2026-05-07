@@ -59,6 +59,11 @@ Here's a quick rundown of the commands available:
 # Dump database schema to file _with_ IF NOT EXISTS in CREATE TABLE statements
 ./synch dump-schema --if-not-exists <clickhouse_url> <file> <database>
 
+# Dump database schema to file _with_ secret values intact
+# This is intended for very specific situations and should always be used with care
+# Do NOT use this if you are not sure, and do NOT leave the resulting dump file behind when you are done!
+./synch dump-schema --show-secrets <clickhouse_url> <file> <database>
+
 # <clickhouse_url> here looks like `"clickhouse://user:password@host:port"`
 
 # Synchronize a table across clusters

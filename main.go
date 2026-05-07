@@ -138,7 +138,11 @@ func main() {
 	dumpSchemaCmd.Flags().BoolVar(&ifNotExists, "if-not-exists", false, "Add IF NOT EXISTS to CREATE TABLE statements")
 	dumpSchemaCmd.Flags().BoolVar(&showSecrets, "show-secrets", false,
 		"Include secrets (e.g. passwords) in the dumped schema instead of '[HIDDEN]'.\n"+
-			"The connecting user must have the displaySecretsInShowAndSelect privilege.\n"+
+			"Cluster-side prerequisites (all required, or output will still be '[HIDDEN]'):\n"+
+			"  1. Server config <display_secrets_in_show_and_select>1</display_secrets_in_show_and_select>\n"+
+			"     in config.xml or config.d/*.xml (server restart required to take effect).\n"+
+			"  2. Connecting user holds the displaySecretsInShowAndSelect privilege.\n"+
+			"     Verify with: CHECK GRANT displaySecretsInShowAndSelect ON *.*\n"+
 			"Do NOT leave any files in place when you are done, secrets will be exposed in the resulting dump!")
 	cmd.AddCommand(dumpSchemaCmd)
 

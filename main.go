@@ -84,6 +84,7 @@ func main() {
 		onlyKafkas    = false
 		onlyMatViews  = false
 		ifNotExists   = false
+		showSecrets   = false
 	)
 
 	dumpSchemaCmd := &cobra.Command{
@@ -114,6 +115,7 @@ func main() {
 				OnlyKafkas:    onlyKafkas,
 				OnlyMatViews:  onlyMatViews,
 				IfNotExists:   ifNotExists,
+				ShowSecrets:   showSecrets,
 			}
 
 			err = Write(&opts)
@@ -134,6 +136,10 @@ func main() {
 	dumpSchemaCmd.Flags().BoolVar(&onlyKafkas, "only-kafkas", false, "Dump only Kafka tables")
 	dumpSchemaCmd.Flags().BoolVar(&onlyMatViews, "only-mat-views", false, "Dump only materialized views")
 	dumpSchemaCmd.Flags().BoolVar(&ifNotExists, "if-not-exists", false, "Add IF NOT EXISTS to CREATE TABLE statements")
+	dumpSchemaCmd.Flags().BoolVar(&showSecrets, "show-secrets", false,
+		"Include secrets (e.g. passwords) in the dumped schema instead of '[HIDDEN]'.\n"+
+			"The connecting user must have the displaySecretsInShowAndSelect privilege.\n"+
+			"Do NOT leave any files in place when you are done, secrets will be exposed in the resulting dump!")
 	cmd.AddCommand(dumpSchemaCmd)
 
 	var (

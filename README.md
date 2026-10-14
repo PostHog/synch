@@ -48,6 +48,8 @@ Here's a quick rundown of the commands available:
 ./synch drain-disk <from_disk> <to_disk>
 
 # Dump database schema to file
+# Tables are written in dependency order by engine (the tableEngines list in schemas.go).
+# Tables whose engine isn't on that list are skipped with a warning naming each one.
 ./synch dump-schema <clickhouse_url> <file> <database>
 
 # Dump database schema to file _without_ kafka or materialized view tables

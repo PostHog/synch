@@ -26,8 +26,13 @@ type Options struct {
 }
 
 var (
+	// Dump order is creation order: each engine may reference tables of the
+	// engines above it, so a new engine goes after anything it can point at.
+	// Tables whose engine isn't listed are not dumped; Write warns about them.
 	tableEngines = []string{
 		"%MergeTree",
+		"Null",
+		"Buffer",
 		"Kafka",
 		"Distributed",
 		"Dictionary",
@@ -104,16 +109,18 @@ func Write(opts *Options) error {
 		}
 	}
 
+	engines := append([]string{}, tableEngines...)
+
 	if opts.NoKafkas {
-		tableEngines = removeElement(tableEngines, "Kafka")
+		engines = removeElement(engines, "Kafka")
 	}
 
 	if opts.NoMatViews {
-		tableEngines = removeElement(tableEngines, "MaterializedView")
+		engines = removeElement(engines, "MaterializedView")
 	}
 
 	if opts.NoDistributed {
-		tableEngines = removeElement(tableEngines, "Distributed")
+		engines = removeElement(engines, "Distributed")
 	}
 
 	if opts.OnlyKafkas && opts.OnlyMatViews {
@@ -121,11 +128,11 @@ func Write(opts *Options) error {
 	}
 
 	if opts.OnlyKafkas {
-		tableEngines = []string{"Kafka"}
+		engines = []string{"Kafka"}
 	}
 
 	if opts.OnlyMatViews {
-		tableEngines = []string{"MaterializedView"}
+		engines = []string{"MaterializedView"}
 	}
 
 	if len(opts.Path) > 0 {
@@ -156,8 +163,12 @@ func Write(opts *Options) error {
 			return fmt.Errorf("writing database '%s' create statement: %v", dbName, err)
 		}
 
+		if err := warnUnlistedTables(opts.DB, dbName); err != nil {
+			return err
+		}
+
 		var tables []string
-		for _, engine := range tableEngines {
+		for _, engine := range engines {
 			newTables, err := getTablesByEngine(opts.DB, dbName, engine)
 			if err != nil {
 				return err
@@ -223,6 +234,45 @@ func getTables(db *sql.DB, dbName string) ([]string, error) {
 	}
 
 	return tables, nil
+}
+
+func warnUnlistedTables(db *sql.DB, dbName string) error {
+	rows, err := db.Query("SELECT name, engine FROM system.tables WHERE name not like '.inner%' AND database = ?;", dbName)
+	if err != nil {
+		return fmt.Errorf("getting table engines for '%s': %v", dbName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var name, engine string
+		if err := rows.Scan(&name, &engine); err != nil {
+			return fmt.Errorf("getting table engines for '%s': %v", dbName, err)
+		}
+		if !engineListed(engine, tableEngines) {
+			log.Warnf("not dumping %s.%s: engine %s is not in the dump allowlist", dbName, name, engine)
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("getting table engines for '%s': %v", dbName, err)
+	}
+
+	return nil
+}
+
+// engineListed mirrors the `engine like ?` match in getTablesByEngine, where
+// patterns only ever use a leading '%'.
+func engineListed(engine string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if suffix, ok := strings.CutPrefix(pattern, "%"); ok {
+			if strings.HasSuffix(engine, suffix) {
+				return true
+			}
+		} else if engine == pattern {
+			return true
+		}
+	}
+	return false
 }
 
 func getTablesByEngine(db *sql.DB, dbName string, engineFilter string) ([]string, error) {
